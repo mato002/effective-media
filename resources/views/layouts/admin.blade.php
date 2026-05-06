@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" id="admin-html" class="h-[100dvh] scroll-smooth">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>@yield('title', 'Admin | Effective Media')</title>
+    <script>
+        if (localStorage.getItem('em-admin-dark') === '1') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('styles')
+</head>
+@php
+    use App\Models\ProfileDownloadRequest;
+    use App\Models\QuoteRequest;
+    use Carbon\Carbon;
+    use Illuminate\Support\Facades\Schema;
+
+    $pendingQuoteCount = 0;
+    $pendingDownloadsCount = 0;
+    $topbarAlerts = [];
+
+    if (Schema::hasTable('quote_requests')) {
+        $pendingQuoteCount = QuoteRequest::query()->where('created_at', '>=', Carbon::now()->subDays(7))->count();
+        foreach (QuoteRequest::query()->latest()->limit(3)->get() as $q) {
+            $topbarAlerts[] = [
+                'title' => 'Quote request',
+                'detail' => trim(($q->company_name ?: $q->full_name).' · '.($q->county ?: $q->location ?: 'Outdoor lead')),
+                'sort' => optional($q->created_at)?->timestamp ?? 0,
+            ];
+        }
+    }
+
+    if (Schema::hasTable('profile_download_requests')) {
+        $pendingDownloadsCount = ProfileDownloadRequest::query()->where('created_at', '>=', Carbon::now()->subDays(7))->count();
+        foreach (ProfileDownloadRequest::query()->latest()->limit(3)->get() as $d) {
+            $topbarAlerts[] = [
+                'title' => 'Profile download',
+                'detail' => trim(($d->company_name ?: $d->full_name).' · '.$d->email),
+                'sort' => optional($d->created_at)?->timestamp ?? 0,
+            ];
+        }
+    }
+
+    usort($topbarAlerts, static fn (array $a, array $b): int => ($b['sort'] ?? 0) <=> ($a['sort'] ?? 0));
+    $topbarAlerts = array_slice(array_map(static function (array $row): array {
+        unset($row['sort']);
+
+        return $row;
+    }, $topbarAlerts), 0, 5);
+@endphp
+<body class="flex h-[100dvh] flex-col overflow-hidden bg-[#efe8e0] text-[#261a18] antialiased transition-colors duration-300 dark:bg-[#0f0e0e] dark:text-[#f2ebe6] [&_select]:dark:bg-[#231f1f] [&_select]:dark:text-[#f6ede8]">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        <aside class="fixed inset-y-0 left-0 z-30 hidden w-[270px] overflow-hidden lg:block" aria-label="Sidebar">
+            @include('admin.partials.sidebar')
+        </aside>
+
+        <div class="flex min-h-0 flex-1 flex-col lg:min-h-0 lg:pl-[270px]">
+            @include('admin.partials.topbar')
+
+            <main class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+                @if (session('status'))
+                    <div class="admin-glass-card mb-6 border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-100" role="status">
+                        {{ session('status') }}
+                    </div>
+                @endif
+                @yield('content')
+            </main>
+
+            @include('admin.partials.footer')
+        </div>
+    </div>
+
+    <div
+        id="admin-sidebar-drawer"
+        class="fixed inset-y-0 left-0 z-50 w-[min(100%,288px)] -translate-x-full transform border-r border-white/10 bg-[#161212] shadow-2xl transition-transform duration-300 lg:hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation"
+        aria-hidden="true"
+    >
+        @include('admin.partials.sidebar')
+    </div>
+    <div id="admin-sidebar-backdrop" class="fixed inset-0 z-40 hidden bg-black/50 backdrop-blur-sm lg:hidden" aria-hidden="true"></div>
+
+    @stack('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const html = document.getElementById('admin-html');
+            const drawer = document.getElementById('admin-sidebar-drawer');
+            const backdrop = document.getElementById('admin-sidebar-backdrop');
+            const toggles = document.querySelectorAll('[data-admin-sidebar-toggle]');
+
+            const setDark = (on) => {
+                if (!html) return;
+                html.classList.toggle('dark', on);
+                localStorage.setItem('em-admin-dark', on ? '1' : '0');
+                document.querySelectorAll('[data-admin-theme-toggle]').forEach((btn) => btn.setAttribute('aria-pressed', on ? 'true' : 'false'));
+                document.querySelectorAll('[data-admin-theme-icon-sun]').forEach((el) => el.classList.toggle('hidden', !on));
+                document.querySelectorAll('[data-admin-theme-icon-moon]').forEach((el) => el.classList.toggle('hidden', on));
+            };
+
+            const stored = localStorage.getItem('em-admin-dark');
+            if (stored === '1') {
+                setDark(true);
+            }
+
+            document.querySelectorAll('[data-admin-theme-toggle]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    setDark(!html.classList.contains('dark'));
+                });
+            });
+
+            const closeDrawer = () => {
+                if (!drawer || !backdrop) return;
+                drawer.classList.add('-translate-x-full');
+                drawer.setAttribute('aria-hidden', 'true');
+                backdrop.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            };
+
+            const openDrawer = () => {
+                if (!drawer || !backdrop) return;
+                drawer.classList.remove('-translate-x-full');
+                drawer.setAttribute('aria-hidden', 'false');
+                backdrop.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            };
+
+            toggles.forEach((btn) => btn.addEventListener('click', openDrawer));
+            backdrop?.addEventListener('click', closeDrawer);
+
+            drawer?.querySelectorAll('a').forEach((link) => {
+                link.addEventListener('click', () => {
+                    if (window.matchMedia('(max-width:1023px)').matches) {
+                        closeDrawer();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
