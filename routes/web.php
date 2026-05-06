@@ -1,13 +1,23 @@
 <?php
 
+use App\Http\Controllers\Admin\Cms\CmsDocumentController;
+use App\Http\Controllers\Admin\Cms\CmsPageController;
+use App\Http\Controllers\Admin\Cms\FaqController;
 use App\Http\Controllers\Admin\Cms\HomepageController;
 use App\Http\Controllers\Admin\Cms\PortfolioItemController;
 use App\Http\Controllers\Admin\Cms\ServiceController;
 use App\Http\Controllers\Admin\Cms\StatisticController;
 use App\Http\Controllers\Admin\Cms\TestimonialController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\LeadController;
+use App\Http\Controllers\Admin\Media\BoardInventoryController;
+use App\Http\Controllers\Admin\Media\CoverageSiteController;
+use App\Http\Controllers\Admin\PlaceholderController;
+use App\Http\Controllers\Admin\PortalSettingsController;
 use App\Http\Controllers\Admin\ProfileDownloadRequestController;
 use App\Http\Controllers\Admin\QuoteRequestController;
+use App\Http\Controllers\Admin\RoleAccessController;
+use App\Http\Controllers\Admin\UserManagementController;
 use App\Http\Controllers\Frontend\PageController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -57,17 +67,127 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::resource('/quotes', QuoteRequestController::class)
             ->middleware('permission:quotes.manage')
             ->only(['index', 'show', 'destroy']);
+        Route::patch('/quotes/{quote}', [QuoteRequestController::class, 'update'])
+            ->middleware('permission:quotes.manage')
+            ->name('quotes.update');
         Route::get('/quotes-export', [QuoteRequestController::class, 'export'])
             ->middleware('permission:quotes.manage')
             ->name('quotes.export');
+
+        Route::get('/sales/leads', [LeadController::class, 'index'])
+            ->middleware('permission:quotes.leads.manage')
+            ->name('sales.leads.index');
+        Route::get('/sales/leads/export', [LeadController::class, 'export'])
+            ->middleware('permission:quotes.leads.manage')
+            ->name('sales.leads.export');
 
         Route::resource('/profile-downloads', ProfileDownloadRequestController::class)
             ->middleware('permission:documents.manage')
             ->parameters(['profile-downloads' => 'profileDownload'])
             ->only(['index', 'show', 'destroy']);
+        Route::post('/profile-downloads/{profileDownload}/archive', [ProfileDownloadRequestController::class, 'archive'])
+            ->middleware('permission:documents.manage')
+            ->name('profile-downloads.archive');
+        Route::post('/profile-downloads/{profileDownload}/restore', [ProfileDownloadRequestController::class, 'restore'])
+            ->middleware('permission:documents.manage')
+            ->name('profile-downloads.restore');
         Route::get('/profile-downloads-export', [ProfileDownloadRequestController::class, 'export'])
             ->middleware('permission:documents.manage')
             ->name('profile-downloads.export');
+
+        Route::prefix('system')->name('system.')->group(function (): void {
+            Route::middleware('permission:roles.view')->group(function (): void {
+                Route::get('/roles/matrix', [RoleAccessController::class, 'matrix'])
+                    ->name('roles.matrix');
+                Route::get('/roles/access-activity', [RoleAccessController::class, 'activity'])
+                    ->name('roles.activity');
+                Route::get('/roles/export', [RoleAccessController::class, 'export'])
+                    ->name('roles.export');
+                Route::get('/roles', [RoleAccessController::class, 'index'])
+                    ->name('roles.index');
+            });
+
+            Route::middleware('permission:roles.manage')->group(function (): void {
+                Route::get('/roles/create', [RoleAccessController::class, 'create'])
+                    ->name('roles.create');
+                Route::post('/roles', [RoleAccessController::class, 'store'])
+                    ->name('roles.store');
+                Route::get('/roles/{role}/edit', [RoleAccessController::class, 'edit'])
+                    ->name('roles.edit');
+                Route::patch('/roles/{role}', [RoleAccessController::class, 'update'])
+                    ->name('roles.update');
+                Route::delete('/roles/{role}', [RoleAccessController::class, 'destroy'])
+                    ->name('roles.destroy');
+                Route::post('/roles/{role}/duplicate', [RoleAccessController::class, 'duplicate'])
+                    ->name('roles.duplicate');
+                Route::patch('/roles/{role}/permissions', [RoleAccessController::class, 'updatePermissions'])
+                    ->name('roles.permissions');
+            });
+
+            Route::middleware('permission:roles.view')->group(function (): void {
+                Route::get('/roles/{role}', [RoleAccessController::class, 'show'])
+                    ->name('roles.show');
+            });
+            Route::get('/users', [UserManagementController::class, 'index'])
+                ->middleware('permission:users.manage')
+                ->name('users.index');
+            Route::get('/users/{user}/edit', [UserManagementController::class, 'edit'])
+                ->middleware('permission:users.manage')
+                ->name('users.edit');
+            Route::patch('/users/{user}', [UserManagementController::class, 'update'])
+                ->middleware('permission:users.manage')
+                ->name('users.update');
+
+            Route::get('/settings', [PortalSettingsController::class, 'index'])
+                ->middleware('permission:settings.manage')
+                ->name('settings');
+            Route::put('/settings/{group}', [PortalSettingsController::class, 'update'])
+                ->middleware('permission:settings.manage')
+                ->where('group', '[a-z_]+')
+                ->name('settings.update');
+            Route::post('/settings/actions/{action}', [PortalSettingsController::class, 'action'])
+                ->middleware('permission:settings.manage')
+                ->where('action', '[a-z-]+')
+                ->name('settings.actions');
+        });
+
+        Route::middleware('permission:media.coverage.manage')->prefix('media')->name('media.')->group(function (): void {
+            Route::resource('coverage-sites', CoverageSiteController::class);
+        });
+
+        Route::middleware('permission:media.boards.manage')->prefix('media')->name('media.')->group(function (): void {
+            Route::resource('boards', BoardInventoryController::class);
+        });
+
+        Route::middleware('permission:operations.modules.view')->group(function (): void {
+            Route::get('/coverage/counties-towns', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'counties-towns')
+                ->name('coverage.counties-towns');
+            Route::get('/coverage/map-data', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'map-data')
+                ->name('coverage.map-data');
+        });
+
+        Route::middleware('permission:invoices.manage')->group(function (): void {
+            Route::get('/finance/invoices', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'invoices')
+                ->name('finance.invoices');
+            Route::get('/finance/receipts', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'receipts')
+                ->name('finance.receipts');
+        });
+
+        Route::middleware('permission:campaigns.manage')->group(function (): void {
+            Route::get('/operations/campaigns', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'campaigns')
+                ->name('operations.campaigns');
+            Route::get('/operations/client-work', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'client-work')
+                ->name('operations.client-work');
+            Route::get('/operations/maintenance-logs', [PlaceholderController::class, 'show'])
+                ->defaults('module', 'maintenance-logs')
+                ->name('operations.maintenance-logs');
+        });
 
         Route::prefix('cms')->name('cms.')->group(function (): void {
             Route::get('/homepage', [HomepageController::class, 'edit'])
@@ -76,12 +196,36 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
             Route::put('/homepage', [HomepageController::class, 'update'])
                 ->middleware('permission:cms.homepage.manage')
                 ->name('homepage.update');
+
+            Route::get('/pages/who-we-are', [CmsPageController::class, 'editWhoWeAre'])
+                ->middleware('permission:cms.pages.manage')
+                ->name('pages.who-we-are.edit');
+            Route::put('/pages/who-we-are', [CmsPageController::class, 'updateWhoWeAre'])
+                ->middleware('permission:cms.pages.manage')
+                ->name('pages.who-we-are.update');
+
+            Route::post('/faqs/reorder', [FaqController::class, 'reorder'])
+                ->middleware('permission:cms.faq.manage')
+                ->name('faqs.reorder');
+            Route::resource('/faqs', FaqController::class)
+                ->middleware('permission:cms.faq.manage')
+                ->except(['show']);
+
+            Route::resource('/library', CmsDocumentController::class)
+                ->middleware('permission:cms.library.manage')
+                ->parameters(['library' => 'library'])
+                ->except(['show']);
+
+            Route::post('/services/reorder', [ServiceController::class, 'reorder'])
+                ->middleware('permission:cms.services.manage')
+                ->name('services.reorder');
             Route::resource('/services', ServiceController::class)
                 ->middleware('permission:cms.services.manage')
                 ->except(['show']);
+
             Route::resource('/portfolio', PortfolioItemController::class)
-                ->middleware('permission:cms.portfolio.manage')
-                ->except(['show']);
+                ->middleware('permission:cms.portfolio.manage');
+
             Route::resource('/testimonials', TestimonialController::class)
                 ->middleware('permission:cms.testimonials.manage')
                 ->except(['show']);

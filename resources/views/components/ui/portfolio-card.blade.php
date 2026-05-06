@@ -6,12 +6,39 @@
     'description' => null,
     'image' => null,
     'campaignSlug' => null,
+    'priority' => false,
 ])
 
-<article {{ $attributes->class(['em-card em-card-accent group overflow-hidden transition hover:-translate-y-1']) }}>
+<article
+    {{ $attributes->class(['em-card em-card-accent group overflow-hidden transition hover:-translate-y-1']) }}
+    data-portfolio-card
+    data-portfolio-title="{{ $title }}"
+    @if ($image)
+        data-portfolio-image="{{ $image }}"
+    @endif
+    data-portfolio-location="{{ $location ?? '' }}"
+    data-portfolio-media="{{ $mediaType ?? '' }}"
+    data-portfolio-client="{{ $client ?? '' }}"
+    data-portfolio-description="{{ Str::limit(strip_tags($description ?? ''), 400) }}"
+>
     <div class="h-52 overflow-hidden bg-[#f6ece3]">
         @if ($image)
-            <img src="{{ $image }}" alt="{{ $title }}" class="h-full w-full object-cover transition duration-500 group-hover:scale-105">
+            <img
+                src="{{ $image }}"
+                alt="{{ $title }}"
+                width="800"
+                height="520"
+                class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                @if ($priority)
+                    fetchpriority="high"
+                    loading="eager"
+                    decoding="async"
+                @else
+                    loading="lazy"
+                    decoding="async"
+                    sizes="(max-width:640px) 100vw, (max-width:1024px) 50vw, 33vw"
+                @endif
+            >
         @else
             <div class="em-angled flex h-full items-center justify-center px-6 text-center text-sm font-semibold text-white">Effective Media Campaign</div>
         @endif
@@ -31,7 +58,7 @@
         @endif
         <p class="mt-2 text-sm leading-7 text-[#515151]">{{ $description }}</p>
         <div class="mt-4 flex flex-wrap gap-2">
-            <button type="button" class="em-btn-secondary px-3 py-2 text-xs">View Details</button>
+            <button type="button" class="em-btn-secondary px-3 py-2 text-xs" data-portfolio-lightbox-open>View Details</button>
             <a
                 href="{{ route('quote', ['campaign' => $campaignSlug, 'location' => $location, 'media_type' => $mediaType]) }}"
                 class="rounded-md bg-[#f04a2a] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#8b1e1a]"

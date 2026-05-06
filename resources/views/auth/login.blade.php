@@ -215,6 +215,16 @@
                         </button>
                     </form>
 
+                    <div class="mt-8 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left text-xs leading-relaxed text-[#b5a9a1]">
+                        <p class="font-bold uppercase tracking-[0.14em] text-[#a8977a]">Portal support</p>
+                        <p class="mt-2">Need access or locked out? Reach the operations desk via
+                            <a href="mailto:{{ config('effective_media_profile.contacts.email', 'info@effectivemedia.co.ke') }}" class="font-semibold text-[#f7b396] underline-offset-2 hover:underline">{{ config('effective_media_profile.contacts.email', 'info@effectivemedia.co.ke') }}</a>
+                            or call
+                            @php($loginPhone = config('effective_media_profile.contacts.phones.0', '0725 646 642'))
+                            <a href="tel:{{ preg_replace('/\s+/', '', $loginPhone) }}" class="font-semibold text-[#f7b396] underline-offset-2 hover:underline">{{ $loginPhone }}</a>.
+                        </p>
+                    </div>
+
                     <div class="mt-8 space-y-4 border-t border-white/10 pt-6 text-center">
                         <a href="{{ route('home') }}" class="inline-flex items-center gap-1.5 text-sm font-semibold text-[#c4b8b0] transition hover:text-white">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

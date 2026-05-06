@@ -1,4 +1,4 @@
-<form method="POST" action="{{ $action }}" class="max-w-4xl space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+<form method="POST" action="{{ $action }}" enctype="multipart/form-data" class="max-w-4xl space-y-4 rounded-lg border border-slate-200 bg-white p-6">
     @csrf
     @if ($method !== 'POST')
         @method($method)
@@ -19,6 +19,17 @@
         <div>
             <label class="mb-1 block text-sm font-medium text-slate-700">Campaign location</label>
             <input type="text" name="campaign_location" value="{{ old('campaign_location', $item?->campaign_location) }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700">Media type</label>
+            <input type="text" name="media_type" value="{{ old('media_type', $item?->media_type) }}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Street lights, Billboard…">
+        </div>
+        <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-slate-700">Hero image</label>
+            <input type="file" name="image" accept="image/*" class="w-full text-sm">
+            @if ($item && $item->image_url)
+                <p class="mt-1 text-xs text-slate-500">Current: <a href="{{ $item->image_url }}" target="_blank" rel="noopener" class="underline">view</a></p>
+            @endif
         </div>
     </div>
     <div>

@@ -1,8 +1,8 @@
 <?php
 
 use Spatie\Permission\DefaultTeamResolver;
+use App\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 return [
 
@@ -28,7 +28,7 @@ return [
          * `Spatie\Permission\Contracts\Role` contract.
          */
 
-        'role' => Role::class,
+        'role' => Role::class, // App\Models\Role — extended with portal metadata (display_name, is_system, …)
 
         /*
          * When using the "Teams" feature from this package, we need to know which

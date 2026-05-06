@@ -9,27 +9,56 @@ use App\Models\QuoteRequest;
 use App\Models\Service;
 use App\Models\Statistic;
 use App\Models\Testimonial;
+use App\Support\CachedSiteProfile;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    /** Plain arrays/primitives only; never serialize Laravel Collections or Eloquent (PHP 8.4 cache issues). */
+    public const DASHBOARD_PAYLOAD_CACHE_KEY = 'admin_dashboard_aggregate_v2';
+
     public function index(): View
     {
-        $profileContent = config('effective_media_profile');
+        $stored = Cache::remember(
+            self::DASHBOARD_PAYLOAD_CACHE_KEY,
+            now()->addSeconds(60),
+            fn (): array => $this->buildPersistableDashboardPayload(),
+        );
+
+        $data = $this->hydrateDashboardPayload($stored);
+
+        return view('admin.dashboard', [
+            ...$data,
+            'cmsModules' => $this->cmsModules(
+                Schema::hasTable('homepage_settings'),
+                Schema::hasTable('services'),
+                Schema::hasTable('portfolio_items'),
+                Schema::hasTable('testimonials'),
+                Schema::hasTable('statistics'),
+            ),
+        ]);
+    }
+
+    /**
+     * Cached payload must be serializable without Collection / Eloquent instances.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPersistableDashboardPayload(): array
+    {
+        $profileContent = CachedSiteProfile::content();
         $reach = collect($profileContent['reach'] ?? []);
         $mapPoints = collect($profileContent['coverage_map_points'] ?? []);
 
         $hasQuotes = Schema::hasTable('quote_requests');
         $hasDownloads = Schema::hasTable('profile_download_requests');
         $hasPortfolio = Schema::hasTable('portfolio_items');
-        $hasServices = Schema::hasTable('services');
-        $hasTestimonials = Schema::hasTable('testimonials');
         $hasStatistics = Schema::hasTable('statistics');
-        $hasHomepage = Schema::hasTable('homepage_settings');
 
         $quotesThisMonth = $hasQuotes
             ? QuoteRequest::query()->where('created_at', '>=', Carbon::now()->startOfMonth())->count()
@@ -135,7 +164,6 @@ class DashboardController extends Controller
         unset($row);
 
         $quoteSpark = $hasQuotes ? $this->dailyCreatedCounts('quote_requests', 7) : array_fill(0, 7, 0);
-        $downloadSpark = $hasDownloads ? $this->dailyCreatedCounts('profile_download_requests', 7) : array_fill(0, 7, 0);
         $chartLabels = [];
         for ($i = 6; $i >= 0; $i--) {
             $chartLabels[] = Carbon::today()->subDays($i)->format('D');
@@ -185,23 +213,15 @@ class DashboardController extends Controller
 
         $activities = $this->buildActivityFeed($hasQuotes, $hasDownloads, $hasPortfolio);
 
-        $cmsModules = $this->cmsModules(
-            $hasHomepage,
-            $hasServices,
-            $hasPortfolio,
-            $hasTestimonials,
-            $hasStatistics,
-        );
-
-        return view('admin.dashboard', [
+        return [
             'kpis' => $kpis,
-            'mapPoints' => $mapPoints,
+            'mapPoints' => $mapPoints->values()->all(),
             'reachByCounty' => $reach->groupBy('county')->map(
                 static fn (Collection $rows): array => [
                     'poles' => (int) $rows->sum('poles'),
                     'sites' => $rows->count(),
                 ]
-            ),
+            )->all(),
             'chartLabels' => $chartLabels,
             'chartSeries' => [
                 'downloads' => $chartDownloads,
@@ -209,13 +229,65 @@ class DashboardController extends Controller
                 'traffic' => $chartTraffic,
                 'cta' => $chartCta,
             ],
-            'recentLeads' => $recentLeads,
-            'recentPortfolio' => $recentPortfolio,
-            'pendingApprovals' => $pendingApprovals,
-            'quotePipeline' => $quotePipeline,
-            'activities' => $activities,
-            'cmsModules' => $cmsModules,
-        ]);
+            'recentLeads' => $recentLeads->map->getAttributes()->values()->all(),
+            'recentPortfolio' => $recentPortfolio->map->getAttributes()->values()->all(),
+            'pendingApprovals' => $pendingApprovals->map->getAttributes()->values()->all(),
+            'quotePipeline' => [
+                'hot' => $quotePipeline['hot']->map->getAttributes()->values()->all(),
+                'follow_up' => $quotePipeline['follow_up']->map->getAttributes()->values()->all(),
+                'nurture' => $quotePipeline['nurture']->map->getAttributes()->values()->all(),
+            ],
+            'activities' => $activities->map(static function (object $o): array {
+                $at = $o->at ?? null;
+
+                return [
+                    'type' => $o->type,
+                    'label' => $o->label,
+                    'detail' => $o->detail,
+                    'at' => $at instanceof \DateTimeInterface ? $at->format(\DateTimeInterface::ATOM) : null,
+                ];
+            })->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $stored
+     * @return array<string, mixed>
+     */
+    private function hydrateDashboardPayload(array $stored): array
+    {
+        $pipeline = $stored['quotePipeline'] ?? [];
+
+        return [
+            'kpis' => $stored['kpis'] ?? [],
+            'mapPoints' => collect($stored['mapPoints'] ?? []),
+            'reachByCounty' => collect($stored['reachByCounty'] ?? []),
+            'chartLabels' => $stored['chartLabels'] ?? [],
+            'chartSeries' => $stored['chartSeries'] ?? [
+                'downloads' => [],
+                'quotes' => [],
+                'traffic' => [],
+                'cta' => [],
+            ],
+            'recentLeads' => QuoteRequest::hydrate($stored['recentLeads'] ?? []),
+            'recentPortfolio' => PortfolioItem::hydrate($stored['recentPortfolio'] ?? []),
+            'pendingApprovals' => PortfolioItem::hydrate($stored['pendingApprovals'] ?? []),
+            'quotePipeline' => [
+                'hot' => QuoteRequest::hydrate(is_array($pipeline['hot'] ?? null) ? $pipeline['hot'] : []),
+                'follow_up' => QuoteRequest::hydrate(is_array($pipeline['follow_up'] ?? null) ? $pipeline['follow_up'] : []),
+                'nurture' => QuoteRequest::hydrate(is_array($pipeline['nurture'] ?? null) ? $pipeline['nurture'] : []),
+            ],
+            'activities' => collect($stored['activities'] ?? [])->map(static function (array $row): object {
+                $at = $row['at'] ?? null;
+
+                return (object) [
+                    'type' => $row['type'] ?? '',
+                    'label' => $row['label'] ?? '',
+                    'detail' => $row['detail'] ?? '',
+                    'at' => is_string($at) && $at !== '' ? Carbon::parse($at) : null,
+                ];
+            }),
+        ];
     }
 
     /**

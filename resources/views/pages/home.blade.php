@@ -3,19 +3,41 @@
 @section('title', 'Effective Media | Outdoor Advertising Infrastructure')
 
 @section('content')
+    @include('components.em-leaflet-loader-inline')
     @php
-        $heroSlides = [
-            asset('profile-gallery/profile-page-2.jpg'),
-            asset('profile-gallery/profile-page-3.jpg'),
+        $pw = $portalWebsite ?? [];
+        $rawPlan = (string) ($pw['cta_plan_url'] ?? '/smart-campaign-planner');
+        $planHref = str_starts_with($rawPlan, 'http') ? $rawPlan : url($rawPlan);
+        $rawCov = (string) ($pw['cta_coverage_url'] ?? '/#coverage-map');
+        $covHref = str_starts_with($rawCov, 'http') ? $rawCov : url($rawCov);
+        $heroFallbackPhotos = collect([
             asset('profile-gallery/profile-page-5.jpg'),
-        ];
+            asset('profile-gallery/profile-page-3.jpg'),
+            asset('profile-gallery/profile-page-2.jpg'),
+        ]);
+        $fromPortfolioHero = collect($featured_portfolio ?? [])->map(fn ($row) => $row->image_url)->filter()->values();
+        $heroPhotoCandidates = $fromPortfolioHero->merge($heroFallbackPhotos)->unique()->take(6)->values();
+        $heroMainPhoto = $heroPhotoCandidates->get(0, $heroFallbackPhotos[0]);
+        $heroSubPhotoA = $heroPhotoCandidates->get(1, $heroFallbackPhotos[1]);
+        $heroSubPhotoB = $heroPhotoCandidates->get(2, $heroFallbackPhotos[2]);
+        $heroBgSlides = $heroPhotoCandidates->take(2)->merge($heroFallbackPhotos)->unique()->take(3)->values()->all();
+        $heroSlides = $heroFallbackPhotos->all();
         $reach = collect($profileContent['reach'] ?? []);
         $countiesCovered = max($reach->pluck('county')->filter()->unique()->count(), 7);
         $townsCovered = max(count($profileContent['coverage_towns'] ?? []), 18);
         $polesCovered = max((int) $reach->sum('poles'), 730);
-        $clientsCount = max((int) $testimonials->count(), 50);
         $coveragePoints = collect($profileContent['coverage_map_points'] ?? [])->values();
         $mapFocus = $coveragePoints->first() ?? ['town' => 'Nakuru', 'county' => 'Nakuru', 'media_type' => 'Street Light Ads'];
+        $monthlyImpressions = collect($statistics ?? [])->first(function ($row) {
+            $lab = strtolower((string) ($row->label ?? ''));
+
+            return str_contains($lab, 'impression') || str_contains($lab, 'visibility') || str_contains($lab, 'monthly');
+        });
+        $monthlyImpressionsVal = $monthlyImpressions ? (int) preg_replace('/\D/', '', (string) ($monthlyImpressions->value ?? '0')) : 28000000;
+        if ($monthlyImpressionsVal <= 0) {
+            $monthlyImpressionsVal = 28000000;
+        }
+        $monthlyImpressionsMillions = max(1, (int) round($monthlyImpressionsVal / 1000000));
         $trustedBrands = ['KFC', 'Dr Mattress', 'KenJap', 'Wasili', 'Domaine', 'Ole Ken', 'EABL', 'Safaricom'];
         $mediaTypes = [
             ['title' => 'Street Light Ads', 'description' => 'Sequential pole placements across urban traffic corridors for repetitive brand recall.', 'image' => asset('profile-gallery/profile-page-2.jpg')],
@@ -42,13 +64,16 @@
         .em-marquee { animation: emMarquee 20s linear infinite; }
         .em-marquee:hover { animation-play-state: paused; }
         .em-parallax { will-change: transform; }
-        .em-night-glow::after {
-            content: "";
-            position: absolute;
-            inset: auto -10% -20% -10%;
-            height: 45%;
-            background: radial-gradient(circle, rgba(255,184,84,0.26) 0%, rgba(255,184,84,0.03) 55%, rgba(255,184,84,0) 72%);
-            pointer-events: none;
+        .em-hero-collage-photo {
+            transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 500ms ease;
+        }
+        .em-hero-collage-photo:hover {
+            transform: translateY(-4px) scale(1.015);
+            box-shadow: 0 28px 60px -20px rgb(0 0 0 / 55%);
+        }
+        #em-home-hero .em-hero-watermark {
+            font-size: clamp(3rem, 10vw, 9rem);
+            letter-spacing: 0.04em;
         }
         @keyframes emFloat {
             0%, 100% { transform: translateY(0); }
@@ -58,61 +83,113 @@
             0% { transform: translateX(0); }
             100% { transform: translateX(-50%); }
         }
+        @keyframes emBadgePulse {
+            0%, 100% { box-shadow: 0 14px 40px -16px rgb(139 30 26 / 45%); }
+            50% { box-shadow: 0 18px 48px -12px rgb(240 74 42 / 40%); }
+        }
+        .em-hero-points-badge {
+            animation: emBadgePulse 6s ease-in-out infinite;
+        }
         @media (max-width: 640px) {
             .em-tight-section { padding-top: 3.5rem; padding-bottom: 3.5rem; }
             .em-compact-text { font-size: 0.95rem; line-height: 1.55; }
         }
+        @media (prefers-reduced-motion: reduce) {
+            .em-hero-collage-photo { transition: none; }
+            .em-hero-collage-photo:hover { transform: none; }
+            .em-hero-points-badge { animation: none; }
+        }
     </style>
 
-    <section class="relative isolate min-h-[88vh] overflow-hidden bg-[#0f0b0b] text-white lg:min-h-[95vh]">
+    <section id="em-home-hero" class="relative isolate min-h-[calc(100dvh-var(--em-header-offset,126px))] overflow-hidden bg-[#0f0b0b] pb-16 pt-10 text-white md:pb-20 md:pt-14 lg:flex lg:flex-col lg:justify-center lg:pb-24 lg:pt-16">
+        <div class="pointer-events-none absolute inset-0 hidden select-none md:block">
+            <div class="em-hero-watermark absolute -left-[8%] top-1/2 -translate-y-1/2 font-black uppercase leading-none text-white/[0.035] blur-[0.5px]">Across Kenya</div>
+            <div class="em-hero-watermark absolute right-[-4%] top-[18%] font-black uppercase leading-none text-white/[0.045] blur-[1px]">Effective Media</div>
+        </div>
         <div class="absolute inset-0" data-hero-slider>
-            @foreach ($heroSlides as $index => $slide)
-                <div class="absolute inset-0 bg-cover bg-center transition-opacity duration-700 {{ $index === 0 ? 'opacity-100' : 'opacity-0' }}" data-hero-slide style="background-image: url('{{ $slide }}');"></div>
+            @foreach ($heroBgSlides as $index => $slide)
+                <div class="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 {{ $index === 0 ? 'opacity-100' : 'opacity-0' }}" data-hero-slide style="background-image: url('{{ $slide }}');"></div>
             @endforeach
         </div>
-        <div class="absolute inset-0 em-parallax bg-[linear-gradient(120deg,rgba(22,13,13,0.94),rgba(92,21,20,0.84)_35%,rgba(139,30,26,0.68)_66%,rgba(12,12,12,0.68))]" data-parallax="-0.08"></div>
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_85%_22%,rgba(255,148,70,0.22),transparent_40%)]"></div>
-        <div class="em-container relative z-10 flex min-h-[88vh] flex-col justify-center py-12 sm:py-14 lg:min-h-[95vh] lg:py-20">
-            <div class="grid items-center gap-10 lg:grid-cols-2">
-                <div class="em-reveal text-center lg:text-left">
-                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-[#f6bd95]">A Media Network Across Kenya</p>
-                    <h1 class="mt-4 text-3xl font-black leading-tight sm:text-5xl lg:text-6xl">Your Brand. Seen Across Kenya.</h1>
-                    <p class="em-compact-text mt-5 max-w-xl text-[#f4dacb] sm:text-base">Strategic outdoor advertising infrastructure across highways, CBDs, transport corridors and urban centers.</p>
-                    <div class="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
-                        <a href="{{ route('smart-campaign-planner') }}" class="em-btn-primary">Plan Campaign</a>
-                        <a href="#coverage-map" class="em-btn-secondary border-white/45 bg-white/10 text-white hover:bg-white/20">Explore Coverage</a>
-                        <button type="button" class="em-btn-secondary border-white/45 bg-white/10 text-white hover:bg-white/20" data-open-download-modal>Download Profile</button>
+        <div class="absolute inset-0 em-parallax bg-[linear-gradient(118deg,rgba(18,10,11,0.96),rgba(72,17,17,0.88)_38%,rgba(125,31,26,0.72)_72%,rgba(10,10,10,0.72))]" data-parallax="-0.06"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_88%_12%,rgba(255,154,92,0.18),transparent_42%)]"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#070505]/95 via-transparent to-[#070505]/50"></div>
+        <div class="em-container relative z-10 w-full lg:mr-14 lg:max-w-[min(100%-3.75rem,80rem)]">
+            <div class="grid items-center gap-11 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-14">
+                <div class="em-reveal order-2 text-center lg:order-none lg:text-left">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#fbc9a8]">{{ $pw['hero_badge'] ?? 'A Media Network Across Kenya' }}</p>
+                    <h1 class="mt-3 text-[1.82rem] font-black leading-[1.1] tracking-tight text-white drop-shadow-[0_12px_40px_rgb(0,0,0,0.45)] sm:text-[2.75rem] sm:leading-[1.08] md:text-[3.05rem] lg:mt-4 lg:text-[3.55rem] lg:leading-[1.02] xl:text-6xl">{{ $pw['hero_headline'] ?? 'Your Brand. Seen Across Kenya.' }}</h1>
+                    <p class="em-compact-text mx-auto mt-4 max-w-[28rem] text-[#fde8dc]/95 md:text-lg lg:mx-0 lg:max-w-xl">{{ $pw['hero_subtext'] ?? 'Strategic outdoor advertising infrastructure across highways, CBDs, transport corridors and urban centers.' }}</p>
+                    <div class="mx-auto mt-8 flex w-full max-w-xl flex-wrap justify-center gap-3 sm:flex-row sm:flex-wrap lg:mx-0 lg:max-w-none lg:justify-start">
+                        <a href="{{ $planHref }}" class="order-1 inline-flex min-h-[46px] w-full flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-[#5c1514] via-[#7a251f] to-[#f04a2a] px-6 py-3.5 text-sm font-bold text-white shadow-[0_8px_32px_-6px_rgb(139,30,26,0.55)] outline outline-1 outline-white/15 transition hover:-translate-y-1 hover:shadow-[0_16px_44px_-4px_rgb(240,74,42,0.55)] hover:brightness-[1.06] active:translate-y-0 sm:w-auto sm:flex-initial sm:basis-auto">{{ $pw['cta_plan_label'] ?? 'Plan Campaign' }}</a>
+                        <a href="{{ $covHref }}" class="order-2 inline-flex min-h-[46px] w-[calc(50%-6px)] items-center justify-center rounded-xl border border-white/55 bg-white/12 px-4 py-3.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgb(255,255,255,0.12)] backdrop-blur-md transition hover:-translate-y-1 hover:bg-white/[0.22] hover:shadow-[0_12px_36px_-8px_rgb(255,154,92,0.35)] sm:w-auto md:px-5">{{ $pw['cta_coverage_label'] ?? 'Explore Coverage' }}</a>
+                        <button type="button" data-open-download-modal class="order-3 inline-flex min-h-[46px] w-[calc(50%-6px)] items-center justify-center rounded-xl px-4 py-3.5 text-sm font-semibold text-[#fde8dc]/95 ring-1 ring-white/35 transition hover:-translate-y-1 hover:bg-white/15 hover:text-white sm:w-auto md:px-5">{{ $pw['cta_download_label'] ?? 'Download Profile' }}</button>
+                    </div>
+                    <div class="mx-auto mt-8 max-w-xl lg:mx-0">
+                        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:max-w-3xl">
+                            <div class="rounded-lg border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] backdrop-blur-sm sm:py-3">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f8c8a8]/90">Poles</p>
+                                <p class="mt-0.5 text-lg font-black tabular-nums text-white sm:text-xl"><span data-counter="{{ $polesCovered }}">0</span>+</p>
+                            </div>
+                            <div class="rounded-lg border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] backdrop-blur-sm sm:py-3">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f8c8a8]/90">Towns</p>
+                                <p class="mt-0.5 text-lg font-black tabular-nums text-white sm:text-xl"><span data-counter="{{ $townsCovered }}">0</span>+</p>
+                            </div>
+                            <div class="rounded-lg border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] backdrop-blur-sm sm:py-3">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f8c8a8]/90">Counties</p>
+                                <p class="mt-0.5 text-lg font-black tabular-nums text-white sm:text-xl"><span data-counter="{{ $countiesCovered }}">0</span>+</p>
+                            </div>
+                            <div class="col-span-2 rounded-lg border border-white/20 bg-white/[0.08] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255,255,255,0.08)] backdrop-blur-sm sm:col-span-1 sm:py-3">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f8c8a8]/90">Monthly roadside impressions</p>
+                                <p class="mt-0.5 text-lg font-black tabular-nums text-white sm:text-xl"><span data-counter="{{ $monthlyImpressionsMillions }}">0</span><span class="text-base font-black">M+</span></p>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-center text-[11px] font-medium leading-relaxed text-[#e8c4af]/80 sm:text-left sm:text-xs">Street Light Ads <span class="text-white/35">|</span> Pavement Ads <span class="text-white/35">|</span> Billboards</p>
                     </div>
                 </div>
-                <div class="relative em-reveal">
-                    <div class="grid grid-cols-2 gap-4">
-                        <img src="{{ asset('profile-gallery/profile-page-5.jpg') }}" alt="Roadside billboard installation" class="em-parallax h-44 w-full rounded-2xl border border-white/20 object-cover shadow-2xl sm:h-52 lg:h-60" data-parallax="-0.12">
-                        <img src="{{ asset('profile-gallery/profile-page-3.jpg') }}" alt="Highway campaign visibility" class="em-night-glow em-parallax relative mt-8 h-44 w-full rounded-2xl border border-white/20 object-cover shadow-2xl sm:h-52 lg:h-60" data-parallax="-0.16">
-                        <img src="{{ asset('profile-gallery/profile-page-2.jpg') }}" alt="Urban street light ads" class="em-parallax -mt-4 h-48 w-full rounded-2xl border border-white/20 object-cover shadow-2xl sm:h-56 lg:h-64" data-parallax="-0.14">
-                        <img src="{{ asset('profile-gallery/profile-page-5.jpg') }}" alt="Illuminated night exposure" class="em-parallax h-48 w-full rounded-2xl border border-white/20 object-cover shadow-2xl sm:h-56 lg:h-64" data-parallax="-0.1">
+                <div class="em-reveal relative order-1 mx-auto w-full max-w-md lg:order-none lg:mx-0 lg:max-w-none">
+                    <div class="em-parallax flex items-stretch gap-3 sm:gap-4 lg:gap-5" data-parallax="-0.04">
+                        <div class="group relative min-h-0 min-w-0 flex-1 self-stretch">
+                            <img
+                                src="{{ $heroMainPhoto }}"
+                                alt="Outdoor advertising — primary coverage visual"
+                                width="520"
+                                height="640"
+                                fetchpriority="high"
+                                decoding="async"
+                                class="em-hero-collage-photo em-parallax h-[min(52vw,22rem)] w-full rounded-2xl border border-white/15 object-cover shadow-[0_28px_70px_-28px_rgb(0,0,0,0.75)] sm:h-[min(44vw,26rem)] lg:h-[min(52vh,28rem)] lg:rounded-3xl"
+                                data-parallax="-0.1"
+                            >
+                        </div>
+                        <div class="hidden w-[34%] shrink-0 flex-col justify-between gap-3 self-stretch pt-10 sm:flex sm:gap-4 lg:pt-14">
+                            <img
+                                src="{{ $heroSubPhotoA }}"
+                                alt="Billboard and highway visibility"
+                                width="240"
+                                height="220"
+                                loading="lazy"
+                                decoding="async"
+                                sizes="30vw"
+                                class="em-hero-collage-photo em-parallax min-h-[6.75rem] w-full flex-1 rounded-xl border border-white/15 object-cover shadow-[0_18px_44px_-20px_rgb(0,0,0,0.65)] lg:min-h-[7.5rem] lg:rounded-2xl"
+                                data-parallax="-0.14"
+                            >
+                            <img
+                                src="{{ $heroSubPhotoB }}"
+                                alt="Street light and urban campaign placement"
+                                width="240"
+                                height="220"
+                                loading="lazy"
+                                decoding="async"
+                                sizes="30vw"
+                                class="em-hero-collage-photo em-parallax min-h-[6.75rem] w-full flex-1 rounded-xl border border-white/15 object-cover shadow-[0_18px_44px_-20px_rgb(0,0,0,0.65)] lg:min-h-[7.5rem] lg:rounded-2xl"
+                                data-parallax="-0.12"
+                            >
+                        </div>
                     </div>
-                    <div class="pointer-events-none absolute -left-5 top-8 rounded-xl border border-white/25 bg-white/15 px-4 py-3 backdrop-blur em-float">
-                        <p class="text-xs uppercase tracking-[0.16em] text-[#f6c49e]">Coverage</p>
-                        <p class="text-xl font-black"><span data-counter="730">0</span>+</p>
+                    <div class="em-hero-points-badge pointer-events-none absolute -bottom-2 left-3 right-auto z-[1] rounded-xl border border-white/30 bg-gradient-to-br from-[#3b1412]/95 to-[#1a0a09]/95 px-3.5 py-2.5 shadow-lg backdrop-blur-md sm:left-4 lg:-bottom-3">
+                        <p class="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#f6c49e]">Network scale</p>
+                        <p class="text-base font-black tabular-nums text-white sm:text-lg"><span data-counter="{{ $polesCovered }}">0</span>+ Media Points</p>
                     </div>
-                </div>
-            </div>
-            <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="em-float rounded-xl border border-white/25 bg-white/15 p-4 backdrop-blur">
-                    <p class="text-xs uppercase tracking-[0.16em] text-[#f8c8a8]">Poles</p>
-                    <p class="mt-1 text-2xl font-black"><span data-counter="{{ $polesCovered }}">0</span>+</p>
-                </div>
-                <div class="em-float rounded-xl border border-white/25 bg-white/15 p-4 backdrop-blur">
-                    <p class="text-xs uppercase tracking-[0.16em] text-[#f8c8a8]">Towns</p>
-                    <p class="mt-1 text-2xl font-black"><span data-counter="{{ $townsCovered }}">0</span>+</p>
-                </div>
-                <div class="em-float rounded-xl border border-white/25 bg-white/15 p-4 backdrop-blur">
-                    <p class="text-xs uppercase tracking-[0.16em] text-[#f8c8a8]">Counties</p>
-                    <p class="mt-1 text-2xl font-black"><span data-counter="{{ $countiesCovered }}">0</span>+</p>
-                </div>
-                <div class="em-float rounded-xl border border-white/25 bg-white/15 p-4 backdrop-blur">
-                    <p class="text-xs uppercase tracking-[0.16em] text-[#f8c8a8]">Clients</p>
-                    <p class="mt-1 text-2xl font-black"><span data-counter="{{ $clientsCount }}">0</span>+</p>
                 </div>
             </div>
         </div>
@@ -133,48 +210,109 @@
         </div>
     </section>
 
-    <section id="coverage-map" class="em-tight-section bg-[#f8f3ee] py-16 sm:py-20">
-        <div class="em-container grid gap-6 lg:grid-cols-2">
-            <div class="em-card em-reveal p-6 sm:p-8">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b1e1a]">Coverage Network</p>
-                <h2 class="mt-2 text-2xl font-black text-[#221211] sm:text-3xl">Interactive Kenya Coverage Map</h2>
-                <div class="mt-6 rounded-2xl border border-[#ecdac8] bg-[radial-gradient(circle_at_30%_20%,#fff,#f4e5d8_70%)] p-4 sm:p-6">
-                    <div class="grid grid-cols-2 gap-3 text-sm">
-                        @foreach ($coveragePoints->take(10) as $point)
-                            <button type="button" class="rounded-md border border-[#e6d0be] bg-white px-3 py-2 text-left font-semibold text-[#5c1514] transition hover:-translate-y-0.5 hover:shadow" data-map-point="{{ $point['town'] ?? 'Town' }}" data-map-county="{{ $point['county'] ?? 'County' }}" data-map-type="{{ $point['media_type'] ?? 'Street Light Ads' }}">
-                                {{ $point['town'] ?? 'Coverage Point' }}
-                            </button>
-                        @endforeach
-                        @if ($coveragePoints->isEmpty())
-                            <div class="col-span-2 rounded-md border border-dashed border-[#d8b69f] bg-white/70 p-4 text-sm text-[#6e5c54]">Coverage points will be displayed here from CMS data.</div>
-                        @endif
+    @if (isset($statistics) && $statistics->isNotEmpty())
+        <section class="border-y border-[#2c1818]/80 bg-[#231616] py-10 text-white">
+            <div class="em-container grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                @foreach ($statistics->take(4) as $stat)
+                    <div class="em-reveal rounded-2xl border border-white/15 bg-white/10 px-5 py-4 text-center backdrop-blur-sm">
+                        <p class="text-3xl font-black text-[#fbc9a8] sm:text-4xl">{{ $stat->value }}{{ $stat->suffix ?? '' }}</p>
+                        <p class="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/75">{{ $stat->label }}</p>
                     </div>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
+    @if (isset($testimonials) && $testimonials->isNotEmpty())
+        <section class="bg-[#fefaf6] py-16 sm:py-20">
+            <div class="em-container">
+                <div class="em-reveal max-w-3xl">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b1e1a]">Client Voice</p>
+                    <h2 class="mt-2 text-3xl font-black text-[#1f1111] sm:text-4xl">Campaign partners trust the network</h2>
+                </div>
+                <div class="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                    @foreach ($testimonials->take(6) as $t)
+                        <figure class="em-reveal flex h-full flex-col rounded-2xl border border-[#ead8c8] bg-white p-6 shadow-[0_20px_48px_-38px_rgba(92,21,20,0.45)]">
+                            <blockquote class="text-sm leading-7 text-[#4a3e38]">{{ $t->quote }}</blockquote>
+                            <figcaption class="mt-4 border-t border-[#f5e9dd] pt-4 text-sm font-bold text-[#5c1514]">{{ $t->client_name ?: 'Client' }}</figcaption>
+                            @if (! empty($t->company_name))
+                                <p class="text-xs font-semibold text-[#8b1e1a]">{{ $t->company_name }}</p>
+                            @endif
+                        </figure>
+                    @endforeach
                 </div>
             </div>
-            <div class="em-card em-reveal p-6 sm:p-8">
+        </section>
+    @endif
+
+    @php
+        $initialCountyPoles = (int) $reach->where('county', $mapFocus['county'] ?? '')->sum('poles');
+        if ($initialCountyPoles < 1) {
+            $initialCountyPoles = $polesCovered;
+        }
+    @endphp
+
+    <section id="coverage-map" class="scroll-mt-28 bg-[#f8f3ee] py-16 sm:py-20">
+        <div class="em-container grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+            <div class="em-card em-reveal order-2 border-0 shadow-[0_28px_60px_-40px_rgba(92,21,20,0.45)] lg:order-1">
+                <div class="border-b border-[#ecdac8] p-5 sm:p-6">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b1e1a]">Coverage Network</p>
+                    <h2 class="mt-2 text-2xl font-black text-[#221211] sm:text-3xl">Interactive Kenya Coverage Map</h2>
+                    <p class="mt-2 text-sm text-[#64544c]">Clustered counties, commuter corridors and heat-intensity signalling. Tap markers to zoom the insight rail.</p>
+                </div>
+                <div class="relative p-4 sm:p-6 sm:pt-0">
+                    <div id="em-home-coverage-map" class="relative z-[1] h-[min(52vh,440px)] w-full overflow-hidden rounded-2xl border border-[#e6d0be] shadow-inner" aria-label="Kenya coverage map"></div>
+                    <p class="mt-3 text-center text-[11px] text-[#7a6a62]">Map data © OpenStreetMap contributors · Intelligence layer © Effective Media</p>
+                </div>
+            </div>
+            <div class="em-card em-reveal order-1 border-0 shadow-[0_28px_60px_-40px_rgba(92,21,20,0.45)] lg:order-2">
                 <div class="hidden lg:block">
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-[#8b1e1a]">Campaign Insight</p>
-                    <h3 class="mt-2 text-3xl font-black text-[#1e1010]" data-map-town>{{ $mapFocus['town'] ?? 'Nakuru' }} Coverage</h3>
-                    <div class="mt-5 space-y-3 text-sm text-[#4e3e38]">
-                        <p><span class="font-semibold text-[#171717]">{{ $polesCovered }}</span> poles available across strategic visibility points.</p>
-                        <p data-map-type-copy>{{ $mapFocus['media_type'] ?? 'Street Light Ads' }} inventory optimized for highway and CBD targeting.</p>
-                        <p>High commuter traffic and repetitive exposure for stronger market recall.</p>
-                        <p>County focus: <span class="font-semibold text-[#171717]" data-map-county>{{ $mapFocus['county'] ?? 'Nakuru' }}</span>.</p>
+                    <h3 class="mt-2 text-3xl font-black text-[#1e1010]" data-map-town>{{ ($mapFocus['town'] ?? 'Nakuru').' Coverage' }}</h3>
+                    <div class="mt-5 grid gap-3 text-sm text-[#4e3e38]">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="rounded-xl border border-[#ecdac8] bg-[#fffaf6] px-3 py-2.5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a8977a]">County poles</p>
+                                <p class="mt-1 text-xl font-black text-[#1a1010]" data-home-poles>{{ $initialCountyPoles }}</p>
+                            </div>
+                            <div class="rounded-xl border border-[#ecdac8] bg-[#fffaf6] px-3 py-2.5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a8977a]">Visibility score</p>
+                                <p class="mt-1 text-xl font-black text-[#1a1010]" data-home-visibility>88</p>
+                            </div>
+                            <div class="rounded-xl border border-[#ecdac8] bg-[#fffaf6] px-3 py-2.5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a8977a]">Traffic strength</p>
+                                <p class="mt-1 text-lg font-black text-[#1a1010]" data-home-traffic>High</p>
+                            </div>
+                            <div class="rounded-xl border border-[#ecdac8] bg-[#fffaf6] px-3 py-2.5">
+                                <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#a8977a]">Active routes</p>
+                                <p class="mt-1 text-lg font-black text-[#1a1010]" data-home-routes>6+</p>
+                            </div>
+                        </div>
+                        <p data-map-type-copy><span class="font-semibold text-[#171717]">{{ $mapFocus['media_type'] ?? 'Street Light Ads' }}</span> inventory aligned to highway, CBD and corridor sequencing.</p>
+                        <p>County focus: <span class="font-semibold text-[#171717]" data-map-county>{{ $mapFocus['county'] ?? 'Nakuru' }}</span> · Town anchor: <span class="font-semibold text-[#171717]" data-home-town-label>{{ $mapFocus['town'] ?? 'Nakuru' }}</span>.</p>
                     </div>
                 </div>
                 <details class="rounded-xl border border-[#ecd7c6] bg-[#fff9f4] p-4 lg:hidden" open>
                     <summary class="cursor-pointer text-sm font-semibold text-[#8b1e1a]">Campaign Insight Panel</summary>
-                    <h3 class="mt-4 text-2xl font-black text-[#1e1010]" data-map-town>{{ $mapFocus['town'] ?? 'Nakuru' }} Coverage</h3>
-                    <div class="mt-4 space-y-3 text-sm text-[#4e3e38]">
-                        <p><span class="font-semibold text-[#171717]">{{ $polesCovered }}</span> poles available across strategic visibility points.</p>
-                        <p data-map-type-copy>{{ $mapFocus['media_type'] ?? 'Street Light Ads' }} inventory optimized for highway and CBD targeting.</p>
-                        <p>High commuter traffic and repetitive exposure for stronger market recall.</p>
+                    <h3 class="mt-4 text-2xl font-black text-[#1e1010]" data-map-town>{{ ($mapFocus['town'] ?? 'Nakuru').' Coverage' }}</h3>
+                    <div class="mt-4 grid gap-3 text-sm text-[#4e3e38]">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="rounded-lg border border-[#ecdac8] bg-white px-2 py-2">
+                                <p class="font-semibold text-[#a8977a]">County poles</p>
+                                <p class="text-lg font-black" data-home-poles>{{ $initialCountyPoles }}</p>
+                            </div>
+                            <div class="rounded-lg border border-[#ecdac8] bg-white px-2 py-2">
+                                <p class="font-semibold text-[#a8977a]">Visibility</p>
+                                <p class="text-lg font-black" data-home-visibility>88</p>
+                            </div>
+                        </div>
+                        <p data-map-type-copy><span class="font-semibold text-[#171717]">{{ $mapFocus['media_type'] ?? 'Street Light Ads' }}</span> inventory aligned to highway, CBD and corridor sequencing.</p>
                         <p>County focus: <span class="font-semibold text-[#171717]" data-map-county>{{ $mapFocus['county'] ?? 'Nakuru' }}</span>.</p>
                     </div>
                 </details>
-                <div class="mt-8 flex flex-wrap gap-3">
-                    <a href="{{ route('quote') }}" class="em-btn-primary">Request Quote</a>
-                    <a href="{{ route('smart-campaign-planner') }}" class="em-btn-secondary">Plan Campaign</a>
+                <div class="border-t border-[#f0e3d8] p-6">
+                    <a href="{{ route('quote') }}" class="em-btn-primary" data-home-cta-quote>Request Quote</a>
+                    <a href="{{ route('smart-campaign-planner') }}" class="em-btn-secondary mt-3 sm:ml-3 sm:mt-0" data-home-cta-planner>Plan Campaign</a>
                 </div>
             </div>
         </div>
@@ -214,7 +352,7 @@
             <div class="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0 sm:grid-cols-2 lg:grid-cols-3">
                 @forelse ($featured_portfolio->take(6) as $item)
                     <article class="group em-reveal min-w-[84%] snap-center overflow-hidden rounded-xl border border-white/15 bg-white/5 sm:min-w-0">
-                        <img src="{{ $item->image_url ?? asset('profile-gallery/profile-page-3.jpg') }}" alt="{{ $item->title }}" class="h-56 w-full object-cover transition duration-500 group-hover:scale-110">
+                        <img src="{{ $item->image_url ?? asset('profile-gallery/profile-page-3.jpg') }}" alt="{{ $item->title }}" width="800" height="448" loading="lazy" decoding="async" sizes="(max-width:640px) 84vw, (max-width:1024px) 50vw, 33vw" class="h-56 w-full object-cover transition duration-500 group-hover:scale-110">
                         <div class="space-y-2 p-4">
                             <p class="text-base font-semibold">{{ $item->title }}</p>
                             <div class="flex flex-wrap gap-2 text-xs">
@@ -397,19 +535,180 @@
                 requestAnimationFrame(animate);
             });
 
-            const mapTown = document.querySelector('[data-map-town]');
-            const mapCounty = document.querySelector('[data-map-county]');
-            const mapTypeCopy = document.querySelector('[data-map-type-copy]');
-            document.querySelectorAll('[data-map-point]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    const town = button.getAttribute('data-map-point');
-                    const county = button.getAttribute('data-map-county');
-                    const type = button.getAttribute('data-map-type');
-                    if (mapTown) mapTown.textContent = `${town} Coverage`;
-                    if (mapCounty) mapCounty.textContent = county || 'Kenya';
-                    if (mapTypeCopy) mapTypeCopy.textContent = `${type || 'Street Light Ads'} inventory optimized for highway and CBD targeting.`;
+            const mapShell = document.getElementById('em-home-coverage-map');
+            const pointsJson = @json($profileContent['coverage_map_points'] ?? []);
+            const reachJson = @json($profileContent['reach'] ?? []);
+
+            const setMultiText = (selector, text) => {
+                document.querySelectorAll(selector).forEach((element) => {
+                    element.textContent = text;
                 });
-            });
+            };
+
+            const updateHomeInsight = (payload) => {
+                setMultiText('[data-map-town]', `${payload.town} Coverage`);
+                setMultiText('[data-map-county]', payload.county || 'Kenya');
+                setMultiText('[data-home-town-label]', payload.town || '');
+                setMultiText('[data-home-poles]', String(payload.poles || 0));
+                setMultiText('[data-home-visibility]', String(payload.visibility || '—'));
+                setMultiText('[data-home-traffic]', payload.traffic || 'High');
+                setMultiText('[data-home-routes]', `${payload.routes || 6}+`);
+
+                document.querySelectorAll('[data-map-type-copy]').forEach((element) => {
+                    element.innerHTML = `<span class="font-semibold text-[#171717]">${payload.mediaType || 'Street Light Ads'}</span> inventory aligned to highway, CBD and corridor sequencing.`;
+                });
+
+                const quote = document.querySelector('[data-home-cta-quote]');
+                const planner = document.querySelector('[data-home-cta-planner]');
+                if (quote instanceof HTMLAnchorElement) {
+                    quote.href = `{{ route('quote') }}?location=${encodeURIComponent(payload.town)}&county=${encodeURIComponent(payload.county)}&media_type=${encodeURIComponent(payload.mediaType)}`;
+                }
+                if (planner instanceof HTMLAnchorElement) {
+                    planner.href = `{{ route('smart-campaign-planner') }}?location=${encodeURIComponent(payload.town)}&county=${encodeURIComponent(payload.county)}`;
+                }
+            };
+
+            const deriveInsight = (point, grouped) => {
+                const poles = grouped[point.county]?.poles ?? 0;
+                const tier = poles > 200 ? 'Very high' : poles > 120 ? 'High' : poles > 60 ? 'Medium' : 'Emerging';
+                const visibility = Math.min(96, Math.round(65 + poles / 25));
+                return {
+                    town: point.town,
+                    county: point.county,
+                    mediaType: point.media_type,
+                    poles,
+                    traffic: tier,
+                    visibility,
+                    routes: Math.max(3, Math.round(poles / 45)),
+                };
+            };
+
+            const initHomeCoverageMap = () => {
+                if (!mapShell || typeof L === 'undefined') return;
+                if (!pointsJson.length) {
+                    mapShell.classList.remove('em-map-skeleton');
+                    mapShell.innerHTML = `<div class="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 bg-[#fffaf7] px-4 text-center text-sm text-[#6e5e56]"><p class="font-semibold text-[#5c1514]">Coverage map data loading</p><p>Add geography points inside the site profile configuration to visualize Kenya coverage.</p><a href="{{ route("portfolio") }}#coverage" class="text-[#8b1e1a] font-semibold underline-offset-4 hover:underline">View portfolio coverage hub</a></div>`;
+
+                    return;
+                }
+
+                mapShell.classList.remove('em-map-skeleton');
+
+                const map = L.map(mapShell).setView([-0.47, 37.85], 6);
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                }).addTo(map);
+
+                const grouped = {};
+                reachJson.forEach((row) => {
+                    if (!grouped[row.county]) grouped[row.county] = { poles: 0, sites: [] };
+                    grouped[row.county].poles += Number(row.poles || 0);
+                    if (row.site) grouped[row.county].sites.push(row.site);
+                });
+
+                const mediaColorMap = {
+                    'Street Light Ads': '#8B1E1A',
+                    'Pavement Ads': '#F04A2A',
+                    Billboards: '#A8977A',
+                    Activations: '#5c1514',
+                };
+
+                let maxCounty = 1;
+                Object.values(grouped).forEach((row) => {
+                    maxCounty = Math.max(maxCounty, row.poles || 1);
+                });
+
+                if (typeof L.heatLayer === 'function') {
+                    const heatPoints = [];
+                    pointsJson.forEach((point) => {
+                        const w = ((grouped[point.county]?.poles ?? 120) / maxCounty) * 0.8 + 0.15;
+                        heatPoints.push([point.lat, point.lng, w]);
+                    });
+                    L.heatLayer(heatPoints, { radius: 36, blur: 22, maxZoom: 12, gradient: { 0.2: '#fde8dc', 0.5: '#f04a2a', 0.85: '#5c1514' } }).addTo(map);
+                }
+
+                const corridors = [
+                    { label: 'Nairobi ↔ Nakuru', path: [[-1.2864, 36.8172], [-0.3031, 36.08]] },
+                    { label: 'Nakuru ↔ Eldoret', path: [[-0.3031, 36.08], [0.5143, 35.2698]] },
+                    { label: 'Kisumu corridor', path: [[-1.2864, 36.8172], [-0.1022, 34.7617]] },
+                ];
+                corridors.forEach((corridor) => {
+                    L.polyline(corridor.path, { color: '#8b1e1a', weight: 3, opacity: 0.35, dashArray: '10 8' }).addTo(map);
+                });
+
+                const createIcon = (mediaType) => L.divIcon({
+                    className: '',
+                    html: `<div class="em-marker-pulse" style="width:15px;height:15px;border-radius:999px;background:${mediaColorMap[mediaType] || '#8B1E1A'};border:2px solid #FFFFFF;box-shadow:0 2px 10px rgba(92,21,20,.5);"></div>`,
+                    iconSize: [15, 15],
+                    iconAnchor: [7, 7],
+                });
+
+                const clusterGroup = L.markerClusterGroup({
+                    showCoverageOnHover: false,
+                    maxClusterRadius: 48,
+                    iconCreateFunction: (cluster) => L.divIcon({
+                        html: `<div style="background:#5C1514;color:#fff;border:2px solid #F04A2A;border-radius:999px;min-width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 6px;">${cluster.getChildCount()}</div>`,
+                        className: 'em-cluster-icon',
+                        iconSize: [38, 38],
+                    }),
+                });
+
+                const bounds = [];
+                pointsJson.forEach((point) => {
+                    const marker = L.marker([point.lat, point.lng], { icon: createIcon(point.media_type) });
+                    const countyPoles = grouped[point.county]?.poles ?? 'N/A';
+                    marker.bindPopup(
+                        `<div style="min-width:190px;font-family:system-ui,sans-serif">
+                            <p style="font-weight:800;color:#5C1514;margin:0 0 6px">${point.town}</p>
+                            <p style="margin:0 0 4px;font-size:12px"><strong>County:</strong> ${point.county}</p>
+                            <p style="margin:0 0 4px;font-size:12px"><strong>County poles:</strong> ${countyPoles}</p>
+                            <p style="margin:0 0 8px;font-size:12px"><strong>Media:</strong> ${point.media_type}</p>
+                            <a href="{{ route('quote') }}?location=${encodeURIComponent(point.town)}&county=${encodeURIComponent(point.county)}&media_type=${encodeURIComponent(point.media_type)}" style="display:inline-block;background:#8B1E1A;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;text-decoration:none">Request quote</a>
+                        </div>`,
+                    );
+                    marker.on('click', () => {
+                        updateHomeInsight(deriveInsight(point, grouped));
+                        map.flyTo([point.lat, point.lng], Math.max(map.getZoom(), 8), { duration: 0.7 });
+                    });
+                    clusterGroup.addLayer(marker);
+                    bounds.push([point.lat, point.lng]);
+                });
+
+                map.addLayer(clusterGroup);
+                if (bounds.length) {
+                    map.fitBounds(bounds, { padding: [28, 28] });
+                }
+
+                if (pointsJson[0]) {
+                    updateHomeInsight(deriveInsight(pointsJson[0], grouped));
+                }
+            };
+
+            if (mapShell && typeof window.emLoadLeaflet === 'function') {
+                mapShell.classList.add('em-map-skeleton');
+                const start = () => {
+                    window
+                        .emLoadLeaflet({ withMarkerCluster: true, withHeat: true })
+                        .then(() => requestAnimationFrame(initHomeCoverageMap))
+                        .catch(() => {});
+                };
+                if ('IntersectionObserver' in window) {
+                    const io = new IntersectionObserver(
+                        (entries) => {
+                            entries.forEach((entry) => {
+                                if (!entry.isIntersecting) return;
+                                io.disconnect();
+                                start();
+                            });
+                        },
+                        { rootMargin: '200px 0px', threshold: 0.02 },
+                    );
+                    io.observe(mapShell);
+                } else {
+                    start();
+                }
+            }
 
             const parallaxItems = document.querySelectorAll('.em-parallax[data-parallax]');
             const onScroll = () => {

@@ -73,7 +73,7 @@
         </div>
     </section>
 
-    <section class="em-container py-16">
+    <section id="why-effective-media" class="em-container scroll-mt-28 py-16">
         <x-ui.section-heading label="Why Effective Media" title="Why Brands Choose Effective Media" description="Built for trust, capacity, and operational confidence." />
         <div class="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             @foreach (($profileContent['why_choose_us'] ?? []) as $point)
@@ -115,7 +115,7 @@
         </div>
     </section>
 
-    <section class="em-container py-16">
+    <section id="leadership-operations" class="em-container scroll-mt-28 py-16">
         <x-ui.section-heading label="How We Execute Campaigns" title="Operational Process" />
         <div class="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             @foreach ([

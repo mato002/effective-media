@@ -4,6 +4,7 @@
 @section('header', 'Command center')
 
 @section('content')
+    @include('components.em-leaflet-loader-inline')
     @php
         $kpiMeta = [
             'active_campaigns' => ['icon' => 'campaign', 'tone' => 'from-[#5c1514] to-[#8b1e1a]'],
@@ -197,7 +198,7 @@
         </div>
 
         {{-- Analytics charts --}}
-        <section class="admin-glass-card p-5">
+        <section id="admin-dashboard-charts" class="admin-glass-card p-5">
             <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h3 class="text-base font-black text-[#2a1716] dark:text-white">Website analytics & capture</h3>
@@ -296,166 +297,209 @@
         </div>
     </div>
 
-    @push('styles')
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    @endpush
-
     @push('scripts')
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin=""></script>
         <script>
-            document.querySelectorAll('[data-admin-counter]').forEach((el) => {
-                const target = Number(el.dataset.target || 0);
-                const dur = 900;
-                const start = performance.now();
-                const step = (t) => {
-                    const p = Math.min(1, (t - start) / dur);
-                    el.textContent = Math.round(target * p).toLocaleString();
-                    if (p < 1) requestAnimationFrame(step);
-                };
-                requestAnimationFrame(step);
-            });
-
-            try {
-                const mapEl = document.getElementById('admin-coverage-map');
-                const pointsRaw = mapEl?.dataset.mapPoints;
-                const reachRaw = mapEl?.dataset.reachCounties;
-                window.__emAdminMap = null;
-
-                if (typeof L !== 'undefined' && mapEl && pointsRaw) {
-                    const points = JSON.parse(pointsRaw);
-                    const reach = reachRaw ? JSON.parse(reachRaw) : {};
-
-                    function radiusFromCounty(county) {
-                        const n = Number(reach[county]?.poles || 0);
-                        const scaled = Math.sqrt(n) / 2.6;
-
-                        return Math.min(Math.max(scaled + 6, 8), 30);
-                    }
-
-                    const map = L.map(mapEl).setView([-0.35, 38], 6);
-                    window.__emAdminMap = map;
-                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; OpenStreetMap contributors',
-                    }).addTo(map);
-
-                    const bounds = [];
-                    points.forEach((p) => {
-                        const marker = L.circleMarker([p.lat, p.lng], {
-                            radius: radiusFromCounty(p.county) / 5 + 6,
-                            color: '#8B1E1A',
-                            weight: 2,
-                            fillColor: '#F04A2A',
-                            fillOpacity: 0.82,
-                        });
-                        marker.bindPopup(`<strong>${p.town}</strong><br/>${p.county}<br/>${p.media_type}`);
-                        marker.addTo(map);
-                        bounds.push([p.lat, p.lng]);
-                    });
-                    if (bounds.length > 1) {
-                        map.fitBounds(bounds, { padding: [14, 14] });
-                    }
-                    window.addEventListener('resize', () => map.invalidateSize());
-                }
-
-                const labels = @json($chartLabels);
-                const scales = () => {
-                    const dark = document.documentElement.classList.contains('dark');
-                    const axis = dark ? '#d7cdc6' : '#5c4740';
-                    const grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(44,34,31,.06)';
-
-                    return {
-                        x: { ticks: { color: axis, font: { size: 10 } }, grid: { color: grid } },
-                        y: { ticks: { color: axis, font: { size: 10 } }, grid: { color: grid }, beginAtZero: true },
+            document.addEventListener('DOMContentLoaded', () => {
+                document.querySelectorAll('[data-admin-counter]').forEach((el) => {
+                    const target = Number(el.dataset.target || 0);
+                    const dur = 900;
+                    const start = performance.now();
+                    const step = (t) => {
+                        const p = Math.min(1, (t - start) / dur);
+                        el.textContent = Math.round(target * p).toLocaleString();
+                        if (p < 1) requestAnimationFrame(step);
                     };
+                    requestAnimationFrame(step);
+                });
+
+                const runWhenVisible = (el, run) => {
+                    if (!el || typeof run !== 'function') return;
+                    if (!('IntersectionObserver' in window)) {
+                        run();
+                        return;
+                    }
+                    const io = new IntersectionObserver(
+                        (entries) => {
+                            entries.forEach((entry) => {
+                                if (!entry.isIntersecting) return;
+                                io.disconnect();
+                                run();
+                            });
+                        },
+                        { rootMargin: '160px 0px', threshold: 0.02 },
+                    );
+                    io.observe(el);
                 };
 
-                const chartOptions = () => ({
-                    plugins: { legend: { display: false } },
-                    scales: scales(),
-                });
+                const initAdminMap = () => {
+                    try {
+                        const mapEl = document.getElementById('admin-coverage-map');
+                        const pointsRaw = mapEl?.dataset.mapPoints;
+                        const reachRaw = mapEl?.dataset.reachCounties;
+                        window.__emAdminMap = null;
 
-                const mk = (id, cfg) => {
-                    const canvas = document.getElementById(id);
-                    return canvas ? new Chart(canvas, { ...cfg, options: chartOptions() }) : null;
-                };
+                        if (!mapEl || !pointsRaw || typeof L === 'undefined') return;
 
-                mk('chart-downloads', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Downloads',
-                            data: @json($chartSeries['downloads']),
-                            borderColor: '#f04a2a',
-                            backgroundColor: 'rgba(240,74,42,0.12)',
-                            fill: true,
-                            tension: 0.42,
-                            borderWidth: 2,
-                        }],
-                    },
-                });
+                        const points = JSON.parse(pointsRaw);
+                        const reach = reachRaw ? JSON.parse(reachRaw) : {};
 
-                mk('chart-traffic', {
-                    type: 'bar',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Traffic pulse',
-                            data: @json($chartSeries['traffic']),
-                            borderRadius: 8,
-                            backgroundColor: '#a8977a',
-                        }],
-                    },
-                });
+                        const radiusFromCounty = (county) => {
+                            const n = Number(reach[county]?.poles || 0);
+                            const scaled = Math.sqrt(n) / 2.6;
+                            return Math.min(Math.max(scaled + 6, 8), 30);
+                        };
 
-                mk('chart-quotes', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Quotes',
-                            data: @json($chartSeries['quotes']),
-                            borderColor: '#8b1e1a',
-                            backgroundColor: 'rgba(139,30,26,0.12)',
-                            fill: true,
-                            tension: 0.42,
-                            borderWidth: 2,
-                        }],
-                    },
-                });
+                        const map = L.map(mapEl).setView([-0.35, 38], 6);
+                        window.__emAdminMap = map;
+                        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap contributors',
+                        }).addTo(map);
 
-                mk('chart-cta', {
-                    type: 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'CTA taps',
-                            data: @json($chartSeries['cta']),
-                            borderColor: '#5c1514',
-                            backgroundColor: 'rgba(92,21,20,0.12)',
-                            fill: true,
-                            tension: 0.42,
-                            borderWidth: 2,
-                        }],
-                    },
-                });
-
-                document.querySelectorAll('[data-admin-theme-toggle]').forEach((btn) => {
-                    btn.addEventListener('click', () => setTimeout(() => {
-                        document.querySelectorAll('canvas[id^=\"chart-\"]').forEach((canvas) => {
-                            const chart = Chart.getChart(canvas);
-                            if (chart) {
-                                chart.options.scales = scales();
-                                chart.update();
-                            }
+                        const bounds = [];
+                        points.forEach((p) => {
+                            const marker = L.circleMarker([p.lat, p.lng], {
+                                radius: radiusFromCounty(p.county) / 5 + 6,
+                                color: '#8B1E1A',
+                                weight: 2,
+                                fillColor: '#F04A2A',
+                                fillOpacity: 0.82,
+                            });
+                            marker.bindPopup(`<strong>${p.town}</strong><br/>${p.county}<br/>${p.media_type}`);
+                            marker.addTo(map);
+                            bounds.push([p.lat, p.lng]);
                         });
-                        window.__emAdminMap?.invalidateSize?.();
-                    }, 100));
+                        if (bounds.length > 1) {
+                            map.fitBounds(bounds, { padding: [14, 14] });
+                        }
+                        window.addEventListener('resize', () => map.invalidateSize());
+                    } catch (e) {
+                        console.warn('Admin coverage map', e);
+                    }
+                };
+
+                const initAdminCharts = () => {
+                    try {
+                        const labels = @json($chartLabels);
+                        const scales = () => {
+                            const dark = document.documentElement.classList.contains('dark');
+                            const axis = dark ? '#d7cdc6' : '#5c4740';
+                            const grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(44,34,31,.06)';
+
+                            return {
+                                x: { ticks: { color: axis, font: { size: 10 } }, grid: { color: grid } },
+                                y: { ticks: { color: axis, font: { size: 10 } }, grid: { color: grid }, beginAtZero: true },
+                            };
+                        };
+
+                        const chartOptions = () => ({
+                            plugins: { legend: { display: false } },
+                            scales: scales(),
+                        });
+
+                        const mk = (id, cfg) => {
+                            const canvas = document.getElementById(id);
+                            return canvas ? new Chart(canvas, { ...cfg, options: chartOptions() }) : null;
+                        };
+
+                        mk('chart-downloads', {
+                            type: 'line',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'Downloads',
+                                    data: @json($chartSeries['downloads']),
+                                    borderColor: '#f04a2a',
+                                    backgroundColor: 'rgba(240,74,42,0.12)',
+                                    fill: true,
+                                    tension: 0.42,
+                                    borderWidth: 2,
+                                }],
+                            },
+                        });
+
+                        mk('chart-traffic', {
+                            type: 'bar',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'Traffic pulse',
+                                    data: @json($chartSeries['traffic']),
+                                    borderRadius: 8,
+                                    backgroundColor: '#a8977a',
+                                }],
+                            },
+                        });
+
+                        mk('chart-quotes', {
+                            type: 'line',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'Quotes',
+                                    data: @json($chartSeries['quotes']),
+                                    borderColor: '#8b1e1a',
+                                    backgroundColor: 'rgba(139,30,26,0.12)',
+                                    fill: true,
+                                    tension: 0.42,
+                                    borderWidth: 2,
+                                }],
+                            },
+                        });
+
+                        mk('chart-cta', {
+                            type: 'line',
+                            data: {
+                                labels,
+                                datasets: [{
+                                    label: 'CTA taps',
+                                    data: @json($chartSeries['cta']),
+                                    borderColor: '#5c1514',
+                                    backgroundColor: 'rgba(92,21,20,0.12)',
+                                    fill: true,
+                                    tension: 0.42,
+                                    borderWidth: 2,
+                                }],
+                            },
+                        });
+
+                        document.querySelectorAll('[data-admin-theme-toggle]').forEach((btn) => {
+                            btn.addEventListener('click', () => setTimeout(() => {
+                                document.querySelectorAll('canvas[id^=\"chart-\"]').forEach((canvas) => {
+                                    const chart = Chart.getChart(canvas);
+                                    if (chart) {
+                                        chart.options.scales = scales();
+                                        chart.update();
+                                    }
+                                });
+                                window.__emAdminMap?.invalidateSize?.();
+                            }, 100));
+                        });
+                    } catch (e) {
+                        console.warn('Admin charts', e);
+                    }
+                };
+
+                runWhenVisible(document.getElementById('admin-coverage-map'), () => {
+                    if (typeof window.emLoadLeaflet !== 'function') return;
+                    window
+                        .emLoadLeaflet({ withMarkerCluster: false })
+                        .then(() => requestAnimationFrame(initAdminMap))
+                        .catch((err) => console.warn('Leaflet load failed', err));
                 });
-            } catch (e) {
-                console.warn('Admin dashboard viz init', e);
-            }
+
+                runWhenVisible(document.getElementById('admin-dashboard-charts'), () => {
+                    if (typeof Chart !== 'undefined') {
+                        requestAnimationFrame(initAdminCharts);
+                        return;
+                    }
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+                    script.crossOrigin = '';
+                    script.onload = () => requestAnimationFrame(initAdminCharts);
+                    script.onerror = () => console.warn('Chart.js failed to load');
+                    document.body.appendChild(script);
+                });
+            });
         </script>
     @endpush
 @endsection

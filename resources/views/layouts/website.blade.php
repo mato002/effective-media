@@ -1,17 +1,47 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="x-dns-prefetch-control" content="on">
-    <link rel="preconnect" href="https://unpkg.com" crossorigin>
-    <link rel="dns-prefetch" href="//unpkg.com">
     <link rel="dns-prefetch" href="//tile.openstreetmap.org">
-    <title>@yield('title', 'Effective Media')</title>
-    <meta name="description" content="@yield('meta_description', 'Modern outdoor advertising and branding infrastructure for Kenya and East Africa.')">
+    <title>@yield('title', ($portalWebsite['meta_title'] ?? '') !== '' ? $portalWebsite['meta_title'] : ($portalBrandName ?? 'Effective Media'))</title>
+    <meta name="description" content="@yield('meta_description', $portalMetaDescription !== '' ? $portalMetaDescription : 'Modern outdoor advertising and branding infrastructure for Kenya and East Africa.')">
+    @if ($portalMetaKeywords !== '')
+        <meta name="keywords" content="{{ $portalMetaKeywords }}">
+    @endif
+    @if ($portalOgImage !== '')
+        <meta property="og:image" content="{{ $portalOgImage }}">
+    @endif
+    @if (! empty($portalFaviconHref))
+        <link rel="icon" href="{{ $portalFaviconHref }}">
+    @endif
+    @if (! empty($portalWebsite['analytics_ga4_id'] ?? ''))
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ $portalWebsite['analytics_ga4_id'] }}"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', @json($portalWebsite['analytics_ga4_id']));
+        </script>
+    @endif
+    @if (! empty($portalWebsite['analytics_gtm_id'] ?? ''))
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','{{ $portalWebsite['analytics_gtm_id'] }}');</script>
+    @endif
+    @if ($portalMetaPixelId !== '')
+        <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','{{ $portalMetaPixelId }}');fbq('track','PageView');</script>
+        <noscript><img height="1" width="1" alt="" src="https://www.facebook.com/tr?id={{ $portalMetaPixelId }}&ev=PageView&noscript=1" /></noscript>
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="pb-14 antialiased lg:pb-0">
+@php($emStickyNav = (bool) ($portalWebsite['sticky_navbar'] ?? true))
+@php($emFabOn = (bool) ($portalWebsite['floating_action_buttons'] ?? true))
+<body class="antialiased {{ $emFabOn ? 'pb-14 lg:pb-0' : '' }}">
+    <div id="em-nav-progress" class="pointer-events-none fixed left-0 top-0 z-[100] h-[2px] w-0 bg-gradient-to-r from-[#5c1514] via-[#f04a2a] to-[#8b1e1a] shadow-sm transition-[width] duration-200 ease-out" aria-hidden="true"></div>
     <style>
         :root {
             --em-header-offset: 126px;
@@ -23,8 +53,16 @@
         section[id], div[id], article[id] {
             scroll-margin-top: calc(var(--em-header-offset) + 12px);
         }
+        body.em-nav-loading #em-nav-progress {
+            width: 88%;
+        }
+        body.em-nav-done #em-nav-progress {
+            width: 100%;
+            opacity: 0;
+            transition: width 0.25s ease-out, opacity 0.35s ease 0.1s;
+        }
     </style>
-    <header class="fixed inset-x-0 top-0 z-50" data-site-header>
+    <header class="{{ $emStickyNav ? 'fixed' : 'relative' }} inset-x-0 top-0 z-50" data-site-header>
         <div class="max-h-[52px] overflow-hidden border-b border-[#c9b8a1] bg-[#5c1514] text-[#fef3e8] transition-all duration-300" data-top-contact-bar>
             <div class="em-container flex items-center justify-between gap-3 py-2 text-xs sm:text-sm">
                 <div class="hidden items-center gap-5 sm:flex">
@@ -36,87 +74,102 @@
                     <span class="font-medium">Effective Media Contact</span>
                     <a href="{{ route('contact') }}#details" class="rounded-md border border-white/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">Contacts</a>
                 </div>
-                <a href="https://wa.me/254725646642?text=Hi%20Effective%20Media%2C%20I%20need%20a%20campaign%20quote." target="_blank" rel="noopener noreferrer" class="hidden rounded-md border border-white/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white sm:inline-flex">WhatsApp Sales</a>
+                <a href="{{ $whatsappHrefQuote }}" target="_blank" rel="noopener noreferrer" class="hidden rounded-md border border-white/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white sm:inline-flex">WhatsApp Sales</a>
             </div>
         </div>
         <div class="border-b border-[#ecdac8] bg-white/95 backdrop-blur transition-all duration-300" data-main-navbar>
-            <div class="em-container flex items-center justify-between py-3 lg:py-4">
+            <div class="em-container flex items-center justify-between py-3 transition-[padding] duration-300 lg:py-4" data-navbar-row>
                 <a href="{{ route('home') }}" class="flex items-center gap-3">
-                    <img src="{{ route('brand-asset.view', ['filename' => 'logo.jpg']) }}" alt="Effective Media logo" class="h-12 w-12 rounded-md border border-[#e7d9cb] object-cover">
-                    <span class="text-base font-bold tracking-wide text-[#5c1514] sm:text-lg">Effective Media</span>
+                    <img src="{{ $brandLogoSrc }}" alt="{{ $portalBrandName }} logo" data-site-logo class="h-12 w-12 rounded-md border border-[#e7d9cb] object-cover transition-[width,height] duration-300">
+                    <span class="text-base font-bold tracking-wide text-[#5c1514] transition-[font-size] duration-300 sm:text-lg" data-site-wordmark>{{ $portalBrandName }}</span>
                 </a>
 
-                <nav class="hidden items-center gap-6 lg:flex" data-desktop-nav>
+                <nav class="hidden items-center gap-5 xl:gap-6 lg:flex" data-desktop-nav>
                     <a href="{{ route('home') }}" class="em-nav-link {{ request()->routeIs('home') ? 'em-nav-link-active' : '' }}">Home</a>
                     <div class="relative" data-dropdown>
-                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('who-we-are') ? 'em-nav-link-active' : '' }}" aria-expanded="false">
+                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('who-we-are') ? 'em-nav-link-active' : '' }}" aria-expanded="false" aria-haspopup="true">
                             Who We Are
-                            <span aria-hidden="true">▾</span>
+                            <span aria-hidden="true" class="text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="em-dropdown-menu" role="menu">
-                            <a href="{{ route('who-we-are') }}#overview" class="em-dropdown-link" role="menuitem">Company Overview</a>
-                            <a href="{{ route('who-we-are') }}#mission-vision" class="em-dropdown-link" role="menuitem">Mission & Vision</a>
-                            <a href="{{ route('portfolio') }}#coverage" class="em-dropdown-link" role="menuitem">Coverage & Reach</a>
-                            <a href="{{ route('who-we-are') }}#clients" class="em-dropdown-link" role="menuitem">Clients</a>
-                            <a href="{{ route('portfolio') }}#documents" class="em-dropdown-link" role="menuitem">Download Profile</a>
+                        <div class="em-dropdown-menu em-mega-dropdown" role="menu">
+                            <div class="grid gap-4 p-4 sm:grid-cols-2">
+                                <div class="space-y-1">
+                                    <p class="em-mega-heading">Company</p>
+                                    <a href="{{ route('who-we-are') }}#overview" class="em-dropdown-link" role="menuitem">Company Overview</a>
+                                    <a href="{{ route('who-we-are') }}#mission-vision" class="em-dropdown-link" role="menuitem">Mission &amp; Vision</a>
+                                    <a href="{{ route('who-we-are') }}#coverage" class="em-dropdown-link" role="menuitem">Coverage Network</a>
+                                </div>
+                                <div class="space-y-1">
+                                    <p class="em-mega-heading">Trust</p>
+                                    <a href="{{ route('who-we-are') }}#why-effective-media" class="em-dropdown-link" role="menuitem">Why Effective Media</a>
+                                    <a href="{{ route('who-we-are') }}#leadership-operations" class="em-dropdown-link" role="menuitem">Leadership / Operations</a>
+                                    <a href="{{ route('home') }}#coverage-map" class="em-dropdown-link" role="menuitem">Live Coverage Map</a>
+                                    <button type="button" class="em-dropdown-link w-full text-left" data-open-download-modal role="menuitem">Download Company Profile</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="relative" data-dropdown>
-                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('what-we-do') ? 'em-nav-link-active' : '' }}" aria-expanded="false">
+                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('what-we-do') ? 'em-nav-link-active' : '' }}" aria-expanded="false" aria-haspopup="true">
                             What We Do
-                            <span aria-hidden="true">▾</span>
+                            <span aria-hidden="true" class="text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="em-dropdown-menu" role="menu">
-                            <a href="{{ route('what-we-do') }}#street-light-box" class="em-dropdown-link" role="menuitem">Street Light Box Advertising</a>
-                            <a href="{{ route('what-we-do') }}#billboards" class="em-dropdown-link" role="menuitem">Billboards</a>
-                            <a href="{{ route('what-we-do') }}#pavement-ads" class="em-dropdown-link" role="menuitem">Pavement Ads</a>
-                            <a href="{{ route('what-we-do') }}#office-branding" class="em-dropdown-link" role="menuitem">Office Branding</a>
-                            <a href="{{ route('what-we-do') }}#rollup-banners" class="em-dropdown-link" role="menuitem">Roll-up Banners & Tear Drops</a>
-                            <a href="{{ route('what-we-do') }}#activations" class="em-dropdown-link" role="menuitem">Product Launches & Activations</a>
-                            <a href="{{ route('what-we-do') }}#roadshows" class="em-dropdown-link" role="menuitem">Road Shows & Merchandising</a>
-                            <a href="{{ route('what-we-do') }}#promotions" class="em-dropdown-link" role="menuitem">Advertising & Promotions</a>
+                        <div class="em-dropdown-menu em-mega-dropdown" role="menu">
+                            <div class="grid gap-3 p-4 sm:grid-cols-2">
+                                <a href="{{ route('what-we-do') }}#street-light-box" class="em-dropdown-link" role="menuitem">Street Light Advertising</a>
+                                <a href="{{ route('what-we-do') }}#billboards" class="em-dropdown-link" role="menuitem">Billboard Campaigns</a>
+                                <a href="{{ route('what-we-do') }}#pavement-ads" class="em-dropdown-link" role="menuitem">Pavement Branding</a>
+                                <a href="{{ route('what-we-do') }}#office-branding" class="em-dropdown-link" role="menuitem">Office Branding</a>
+                                <a href="{{ route('what-we-do') }}#activations" class="em-dropdown-link" role="menuitem">Activations &amp; Roadshows</a>
+                                <a href="{{ route('smart-campaign-planner') }}" class="em-dropdown-link" role="menuitem">Campaign Planning</a>
+                            </div>
                         </div>
                     </div>
                     <div class="relative" data-dropdown>
-                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('portfolio') ? 'em-nav-link-active' : '' }}" aria-expanded="false">
+                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('portfolio') ? 'em-nav-link-active' : '' }}" aria-expanded="false" aria-haspopup="true">
                             Portfolio
-                            <span aria-hidden="true">▾</span>
+                            <span aria-hidden="true" class="text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="em-dropdown-menu" role="menu">
-                            <a href="{{ route('portfolio') }}#gallery" class="em-dropdown-link" role="menuitem">Campaign Gallery</a>
-                            <a href="{{ route('portfolio', ['filter' => 'street-light-ads']) }}#gallery" class="em-dropdown-link" role="menuitem">Street Light Ads</a>
-                            <a href="{{ route('portfolio', ['filter' => 'billboards']) }}#gallery" class="em-dropdown-link" role="menuitem">Billboards</a>
-                            <a href="{{ route('portfolio', ['filter' => 'office-branding']) }}#gallery" class="em-dropdown-link" role="menuitem">Office Branding</a>
-                            <a href="{{ route('portfolio', ['filter' => 'pavement-ads']) }}#gallery" class="em-dropdown-link" role="menuitem">Pavement Ads</a>
-                            <a href="{{ route('portfolio', ['filter' => 'activations']) }}#gallery" class="em-dropdown-link" role="menuitem">Activations</a>
-                            <a href="{{ route('portfolio') }}#clients" class="em-dropdown-link" role="menuitem">Client Work</a>
+                        <div class="em-dropdown-menu em-mega-dropdown" role="menu">
+                            <div class="grid gap-3 p-4 sm:grid-cols-2">
+                                <a href="{{ route('portfolio') }}#gallery" class="em-dropdown-link" role="menuitem">Campaign Gallery</a>
+                                <a href="{{ route('portfolio') }}#coverage" class="em-dropdown-link" role="menuitem">Coverage Locations</a>
+                                <a href="{{ route('portfolio') }}#coverage" class="em-dropdown-link" role="menuitem">County Reach</a>
+                                <a href="{{ route('portfolio') }}#gallery" class="em-dropdown-link" role="menuitem">Case Studies</a>
+                                <a href="{{ route('portfolio', ['filter' => 'activations']) }}#gallery" class="em-dropdown-link" role="menuitem">Brand Activations</a>
+                                <a href="{{ route('what-we-do') }}#street-light-box" class="em-dropdown-link" role="menuitem">Media Formats</a>
+                            </div>
                         </div>
                     </div>
                     <div class="relative" data-dropdown>
-                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('smart-campaign-planner') ? 'em-nav-link-active' : '' }}" aria-expanded="false">
+                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('smart-campaign-planner') ? 'em-nav-link-active' : '' }}" aria-expanded="false" aria-haspopup="true">
                             Smart Campaign Planner
-                            <span aria-hidden="true">▾</span>
+                            <span aria-hidden="true" class="text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="em-dropdown-menu" role="menu">
-                            <a href="{{ route('smart-campaign-planner') }}#location" class="em-dropdown-link" role="menuitem">Plan by Location</a>
-                            <a href="{{ route('portfolio') }}#coverage" class="em-dropdown-link" role="menuitem">Explore Coverage Map</a>
-                            <a href="{{ route('smart-campaign-planner') }}#calculator" class="em-dropdown-link" role="menuitem">Estimate Campaign Cost</a>
-                            <a href="{{ route('smart-campaign-planner') }}#recommendation" class="em-dropdown-link" role="menuitem">Request Recommendation</a>
-                            <a href="{{ route('quote') }}" class="em-dropdown-link" role="menuitem">Generate Quote</a>
+                        <div class="em-dropdown-menu em-mega-dropdown" role="menu">
+                            <div class="grid gap-3 p-4 sm:grid-cols-2">
+                                <a href="{{ route('smart-campaign-planner') }}#location" class="em-dropdown-link" role="menuitem">Plan By County</a>
+                                <a href="{{ route('smart-campaign-planner') }}#calculator" class="em-dropdown-link" role="menuitem">Plan By Budget</a>
+                                <a href="{{ route('smart-campaign-planner') }}#calculator" class="em-dropdown-link" role="menuitem">Visibility Calculator</a>
+                                <a href="{{ route('smart-campaign-planner') }}#calculator" class="em-dropdown-link" role="menuitem">Campaign Duration</a>
+                                <a href="{{ route('smart-campaign-planner') }}#recommendation" class="em-dropdown-link" role="menuitem">Reach Estimator</a>
+                            </div>
                         </div>
                     </div>
                     <a href="{{ route('faqs') }}" class="em-nav-link {{ request()->routeIs('faqs') ? 'em-nav-link-active' : '' }}">FAQs</a>
                     <div class="relative" data-dropdown>
-                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('contact-us') || request()->routeIs('contact') ? 'em-nav-link-active' : '' }}" aria-expanded="false">
+                        <button type="button" class="em-nav-link inline-flex items-center gap-1 {{ request()->routeIs('contact-us') || request()->routeIs('contact') ? 'em-nav-link-active' : '' }}" aria-expanded="false" aria-haspopup="true">
                             Contact Us
-                            <span aria-hidden="true">▾</span>
+                            <span aria-hidden="true" class="text-[10px] opacity-70">▾</span>
                         </button>
-                        <div class="em-dropdown-menu" role="menu">
-                            <a href="{{ route('contact') }}#details" class="em-dropdown-link" role="menuitem">Contact Details</a>
-                            <a href="{{ route('quote') }}" class="em-dropdown-link" role="menuitem">Request Quote</a>
-                            <a href="https://wa.me/254725646642?text=Hi%20Effective%20Media%2C%20I%20am%20interested%20in%20outdoor%20advertising.%20Please%20share%20available%20sites%20and%20rates." target="_blank" rel="noopener noreferrer" class="em-dropdown-link" role="menuitem">WhatsApp Sales</a>
-                            <a href="{{ route('contact') }}#form" class="em-dropdown-link" role="menuitem">Send Enquiry</a>
-                            <a href="{{ route('contact') }}#location" class="em-dropdown-link" role="menuitem">Office Location</a>
+                        <div class="em-dropdown-menu em-mega-dropdown" role="menu">
+                            <div class="grid gap-3 p-4 sm:grid-cols-2">
+                                <a href="{{ route('quote') }}" class="em-dropdown-link" role="menuitem">Request Quote</a>
+                                <a href="{{ $whatsappHrefQuote }}" target="_blank" rel="noopener noreferrer" class="em-dropdown-link" role="menuitem">WhatsApp</a>
+                                <a href="{{ route('contact') }}#location" class="em-dropdown-link" role="menuitem">Office Locations</a>
+                                <a href="{{ route('contact') }}#details" class="em-dropdown-link" role="menuitem">Email Contacts</a>
+                                <a href="{{ route('contact') }}#form" class="em-dropdown-link" role="menuitem">Send enquiry</a>
+                            </div>
                         </div>
                     </div>
                 </nav>
@@ -124,78 +177,84 @@
                 <div class="flex items-center gap-2">
                     <a href="{{ route('quote') }}" class="em-btn-primary hidden lg:inline-flex" data-track-event="quote_started">Get a Quote</a>
                     <a href="{{ route('quote') }}" class="rounded-md bg-[#8b1e1a] px-3 py-2 text-xs font-semibold text-white lg:hidden" data-track-event="quote_started">Quote</a>
-                    <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-[#d8bba6] text-[#5c1514] lg:hidden" data-mobile-menu-toggle aria-expanded="false" aria-controls="mobile-site-menu">
-                        <span class="sr-only">Toggle menu</span>
-                        ☰
+                    <button type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-[#d8bba6] text-[#5c1514] transition hover:bg-[#f7eee7] lg:hidden" data-mobile-menu-toggle aria-expanded="false" aria-controls="em-mobile-drawer">
+                        <span class="sr-only">Open menu</span>
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
                     </button>
                 </div>
-            </div>
-            <div id="mobile-site-menu" class="hidden border-t border-[#ecdac8] bg-white px-4 py-4 lg:hidden" data-mobile-menu>
-                <nav class="grid max-h-[calc(100vh-140px)] gap-1 overflow-y-auto pr-1 text-sm font-semibold text-[#3b2525]">
-                    <a href="{{ route('home') }}" class="rounded-md px-3 py-2 hover:bg-[#f7eee7]">Home</a>
-                    <details class="rounded-md border border-[#ecdac8]" data-mobile-accordion>
-                        <summary class="cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Who We Are</summary>
-                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 text-sm">
-                            <a href="{{ route('who-we-are') }}#overview" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Company Overview</a>
-                            <a href="{{ route('who-we-are') }}#mission-vision" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Mission & Vision</a>
-                            <a href="{{ route('portfolio') }}#coverage" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Coverage & Reach</a>
-                            <a href="{{ route('who-we-are') }}#clients" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Clients</a>
-                            <a href="{{ route('portfolio') }}#documents" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Download Profile</a>
-                        </div>
-                    </details>
-                    <details class="rounded-md border border-[#ecdac8]" data-mobile-accordion>
-                        <summary class="cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">What We Do</summary>
-                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 text-sm">
-                            <a href="{{ route('what-we-do') }}#street-light-box" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Street Light Box Advertising</a>
-                            <a href="{{ route('what-we-do') }}#billboards" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Billboards</a>
-                            <a href="{{ route('what-we-do') }}#pavement-ads" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Pavement Ads</a>
-                            <a href="{{ route('what-we-do') }}#office-branding" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Office Branding</a>
-                            <a href="{{ route('what-we-do') }}#rollup-banners" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Roll-up Banners & Tear Drops</a>
-                            <a href="{{ route('what-we-do') }}#activations" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Product Launches & Activations</a>
-                            <a href="{{ route('what-we-do') }}#roadshows" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Road Shows & Merchandising</a>
-                            <a href="{{ route('what-we-do') }}#promotions" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Advertising & Promotions</a>
-                        </div>
-                    </details>
-                    <details class="rounded-md border border-[#ecdac8]" data-mobile-accordion>
-                        <summary class="cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Portfolio</summary>
-                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 text-sm">
-                            <a href="{{ route('portfolio') }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Campaign Gallery</a>
-                            <a href="{{ route('portfolio', ['filter' => 'street-light-ads']) }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Street Light Ads</a>
-                            <a href="{{ route('portfolio', ['filter' => 'billboards']) }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Billboards</a>
-                            <a href="{{ route('portfolio', ['filter' => 'office-branding']) }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Office Branding</a>
-                            <a href="{{ route('portfolio', ['filter' => 'pavement-ads']) }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Pavement Ads</a>
-                            <a href="{{ route('portfolio', ['filter' => 'activations']) }}#gallery" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Activations</a>
-                            <a href="{{ route('portfolio') }}#clients" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Client Work</a>
-                        </div>
-                    </details>
-                    <details class="rounded-md border border-[#ecdac8]" data-mobile-accordion>
-                        <summary class="cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Smart Campaign Planner</summary>
-                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 text-sm">
-                            <a href="{{ route('smart-campaign-planner') }}#location" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Plan by Location</a>
-                            <a href="{{ route('portfolio') }}#coverage" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Explore Coverage Map</a>
-                            <a href="{{ route('smart-campaign-planner') }}#calculator" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Estimate Campaign Cost</a>
-                            <a href="{{ route('smart-campaign-planner') }}#recommendation" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Request Recommendation</a>
-                            <a href="{{ route('quote') }}" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Generate Quote</a>
-                        </div>
-                    </details>
-                    <a href="{{ route('faqs') }}" class="rounded-md px-3 py-2 hover:bg-[#f7eee7]">FAQs</a>
-                    <details class="rounded-md border border-[#ecdac8]" data-mobile-accordion>
-                        <summary class="cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Contact Us</summary>
-                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 text-sm">
-                            <a href="{{ route('contact') }}#details" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Contact Details</a>
-                            <a href="{{ route('quote') }}" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Request Quote</a>
-                            <a href="https://wa.me/254725646642?text=Hi%20Effective%20Media%2C%20I%20am%20interested%20in%20outdoor%20advertising.%20Please%20share%20available%20sites%20and%20rates." target="_blank" rel="noopener noreferrer" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">WhatsApp Sales</a>
-                            <a href="{{ route('contact') }}#form" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Send Enquiry</a>
-                            <a href="{{ route('contact') }}#location" class="rounded-md px-2 py-1.5 hover:bg-[#f7eee7]">Office Location</a>
-                        </div>
-                    </details>
-                </nav>
             </div>
         </div>
         <div class="em-pattern h-2"></div>
     </header>
 
-    <main class="min-h-screen pt-[var(--em-header-offset)]">
+    <div id="em-mobile-drawer" class="em-mobile-drawer" hidden data-mobile-drawer>
+        <button type="button" class="absolute inset-0 bg-black/45 backdrop-blur-[1px]" data-mobile-drawer-backdrop aria-label="Close menu"></button>
+        <div class="em-mobile-drawer-panel" data-mobile-drawer-panel>
+            <div class="flex items-center justify-between border-b border-[#ecdac8] px-4 py-3">
+                <span class="text-sm font-black uppercase tracking-wide text-[#5c1514]">Menu</span>
+                <button type="button" class="rounded-md border border-[#d8bba6] px-2 py-1 text-xs font-semibold text-[#5c1514]" data-mobile-menu-close>Close</button>
+            </div>
+            <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm font-semibold text-[#3b2525]" aria-label="Mobile">
+                <div class="space-y-1.5">
+                    <a href="{{ route('home') }}" class="block min-h-[44px] rounded-lg px-3 py-2.5 hover:bg-[#f7eee7]">Home</a>
+                    <details class="rounded-lg border border-[#ecdac8]" data-mobile-accordion>
+                        <summary class="min-h-[44px] cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Who We Are</summary>
+                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 font-medium">
+                            <a href="{{ route('who-we-are') }}#overview" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Company Overview</a>
+                            <a href="{{ route('who-we-are') }}#mission-vision" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Mission &amp; Vision</a>
+                            <a href="{{ route('who-we-are') }}#coverage" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Coverage Network</a>
+                            <a href="{{ route('who-we-are') }}#why-effective-media" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Why Effective Media</a>
+                            <a href="{{ route('who-we-are') }}#leadership-operations" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Leadership / Operations</a>
+                            <a href="{{ route('home') }}#coverage-map" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Live Coverage Map</a>
+                            <button type="button" class="w-full min-h-[40px] rounded-md px-2 py-2 text-left hover:bg-[#f7eee7]" data-open-download-modal>Download Company Profile</button>
+                        </div>
+                    </details>
+                    <details class="rounded-lg border border-[#ecdac8]" data-mobile-accordion>
+                        <summary class="min-h-[44px] cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">What We Do</summary>
+                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 font-medium">
+                            <a href="{{ route('what-we-do') }}#street-light-box" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Street Light Advertising</a>
+                            <a href="{{ route('what-we-do') }}#billboards" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Billboard Campaigns</a>
+                            <a href="{{ route('what-we-do') }}#pavement-ads" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Pavement Branding</a>
+                            <a href="{{ route('what-we-do') }}#office-branding" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Office Branding</a>
+                            <a href="{{ route('what-we-do') }}#activations" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Activations &amp; Roadshows</a>
+                            <a href="{{ route('smart-campaign-planner') }}" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Campaign Planning</a>
+                        </div>
+                    </details>
+                    <details class="rounded-lg border border-[#ecdac8]" data-mobile-accordion>
+                        <summary class="min-h-[44px] cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Portfolio</summary>
+                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 font-medium">
+                            <a href="{{ route('portfolio') }}#gallery" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Campaign Gallery</a>
+                            <a href="{{ route('portfolio') }}#coverage" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Coverage Locations</a>
+                            <a href="{{ route('portfolio', ['filter' => 'activations']) }}#gallery" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Brand Activations</a>
+                            <a href="{{ route('what-we-do') }}#street-light-box" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Media Formats</a>
+                        </div>
+                    </details>
+                    <details class="rounded-lg border border-[#ecdac8]" data-mobile-accordion>
+                        <summary class="min-h-[44px] cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Smart Campaign Planner</summary>
+                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 font-medium">
+                            <a href="{{ route('smart-campaign-planner') }}#location" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Plan By County</a>
+                            <a href="{{ route('smart-campaign-planner') }}#calculator" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Plan By Budget</a>
+                            <a href="{{ route('smart-campaign-planner') }}#calculator" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Visibility Calculator</a>
+                            <a href="{{ route('smart-campaign-planner') }}#recommendation" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Reach Estimator</a>
+                        </div>
+                    </details>
+                    <a href="{{ route('faqs') }}" class="block min-h-[44px] rounded-lg px-3 py-2.5 hover:bg-[#f7eee7]">FAQs</a>
+                    <details class="rounded-lg border border-[#ecdac8]" data-mobile-accordion>
+                        <summary class="min-h-[44px] cursor-pointer list-none px-3 py-2.5 text-[#5c1514]">Contact Us</summary>
+                        <div class="grid gap-1 border-t border-[#ecdac8] p-2 font-medium">
+                            <a href="{{ route('quote') }}" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Request Quote</a>
+                            <a href="{{ $whatsappHrefQuote }}" target="_blank" rel="noopener noreferrer" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">WhatsApp</a>
+                            <a href="{{ route('contact') }}#location" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Office Locations</a>
+                            <a href="{{ route('contact') }}#details" class="min-h-[40px] rounded-md px-2 py-2 hover:bg-[#f7eee7]">Email Contacts</a>
+                        </div>
+                    </details>
+                    <a href="{{ route('quote') }}" class="mt-2 flex min-h-[48px] items-center justify-center rounded-xl bg-[#8b1e1a] px-4 py-3 text-sm font-bold text-white" data-track-event="quote_started">Get a Quote</a>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <main class="min-h-screen {{ $emStickyNav ? 'pt-[var(--em-header-offset)]' : '' }}">
         @yield('content')
     </main>
 
@@ -217,8 +276,8 @@
             <div class="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 xl:gap-10">
                 <div class="sm:col-span-2 xl:col-span-1">
                     <div class="flex items-center gap-2.5">
-                        <img src="{{ route('brand-asset.view', ['filename' => 'logo.jpg']) }}" alt="Effective Media logo" class="h-9 w-9 rounded-md border border-white/25 object-cover" width="36" height="36">
-                        <span class="text-base font-bold tracking-wide text-white">Effective Media</span>
+                        <img src="{{ $brandLogoSrc }}" alt="{{ $portalBrandName }} logo" class="h-9 w-9 rounded-md border border-white/25 object-cover" width="36" height="36">
+                        <span class="text-base font-bold tracking-wide text-white">{{ $portalBrandName }}</span>
                     </div>
                     <p class="mt-3 max-w-xs text-xs leading-relaxed text-[#e8d4c4]/85">Outdoor advertising infrastructure across highways, CBDs and urban corridors in Kenya.</p>
                     <ul class="mt-4 space-y-1.5 text-xs font-medium text-white/95">
@@ -273,16 +332,19 @@
                     <h3 class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d4a574]">Contact</h3>
                     <div class="mt-3 space-y-1.5 text-sm text-[#e8d4c4]/95">
                         @foreach (($profileContact['phones'] ?? []) as $phone)
-                            @php
-                                $digits = preg_replace('/\D+/', '', (string) $phone);
-                                if (str_starts_with($digits, '0')) {
-                                    $digits = '254'.substr($digits, 1);
-                                } elseif ($digits !== '' && ! str_starts_with($digits, '254')) {
-                                    $digits = '254'.$digits;
-                                }
-                                $phoneHref = $digits !== '' ? 'tel:+'.$digits : $telHref;
-                            @endphp
-                            <a href="{{ $phoneHref }}" class="block transition hover:text-white">{{ $phone }}</a>
+                            <a
+                                href="{{ (function () use ($phone, $telHref) {
+                                    $digits = preg_replace('/\D+/', '', (string) $phone);
+                                    if (str_starts_with($digits, '0')) {
+                                        $digits = '254'.substr($digits, 1);
+                                    } elseif ($digits !== '' && ! str_starts_with($digits, '254')) {
+                                        $digits = '254'.$digits;
+                                    }
+
+                                    return $digits !== '' ? 'tel:+'.$digits : ($telHref ?? 'tel:+254725646642');
+                                })() }}"
+                                class="block transition hover:text-white"
+                            >{{ $phone }}</a>
                         @endforeach
                         <a href="mailto:{{ $profileContact['email'] ?? '' }}" class="block transition hover:text-white">{{ $profileContact['email'] ?? '' }}</a>
                         <a href="{{ route('contact') }}#location" class="block text-xs leading-snug text-[#e8d4c4]/75 transition hover:text-white">{{ $profileContact['office'] ?? 'Nakuru, Kenya' }}</a>
@@ -310,29 +372,53 @@
             </div>
         </div>
 
-        <div class="border-t border-white/10 py-2 text-center text-[11px] leading-tight text-[#d9c4b0]/85">
-            &copy; {{ now()->year }} Effective Media. All rights reserved.
+        <div class="border-t border-white/15 bg-[linear-gradient(90deg,#4a1614,#351210)]">
+            <div class="em-container grid gap-8 py-10 lg:grid-cols-3 lg:items-start">
+                <div>
+                    <h3 class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d4a574]">Coverage snapshot</h3>
+                    <p class="mt-3 text-sm text-[#ead5c8]/90">Nationwide commuter corridors · {{ $portalBrandName }}</p>
+                    <a href="{{ route('home') }}#coverage-map" class="mt-4 inline-flex text-sm font-semibold text-[#f7cba8] underline-offset-4 transition hover:text-white hover:underline">Open live coverage map</a>
+                </div>
+                <div>
+                    <h3 class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d4a574]">Office &amp; hours</h3>
+                    <p class="mt-3 text-sm leading-relaxed text-[#ead5c8]/90">{{ $profileContact['office'] ?? 'Nakuru, Kenya' }}</p>
+                    <p class="mt-2 text-xs text-[#d9c4b0]/80">Mon–Fri · 8:30am – 5:30pm (EAT)</p>
+                    <a href="https://www.openstreetmap.org/search?query={{ urlencode($profileContact['office'] ?? 'Nakuru Kenya') }}" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex text-sm font-semibold text-[#f7cba8] underline-offset-4 transition hover:text-white hover:underline">Mini map preview (OpenStreetMap)</a>
+                </div>
+                <div>
+                    <h3 class="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d4a574]">Stay briefed</h3>
+                    <p class="mt-3 text-sm text-[#ead5c8]/90">Newsletter and media intelligence requests route through our contact desk.</p>
+                    <a href="{{ route('contact') }}#form" class="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-lg bg-[#f04a2a] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#ff6f4d]">Request newsletter / updates</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-white/10 px-4 py-3 text-center text-[11px] text-[#d9c4b0]/90 sm:flex sm:items-center sm:justify-center sm:gap-4">
+            <span>&copy; {{ now()->year }} Effective Media. All rights reserved.</span>
+            <span class="hidden sm:inline" aria-hidden="true">·</span>
+            <a href="{{ route('contact') }}#location" class="transition hover:text-white">Legal &amp; privacy</a>
         </div>
     </footer>
 
+    @if ($emFabOn)
     <div
         data-em-desktop-fab
-        class="fixed right-4 z-40 hidden flex-col gap-2 transition-[bottom,opacity] duration-200 md:flex"
-        style="bottom: 1.25rem;"
+        class="fixed right-3 z-40 hidden flex-col gap-1.5 transition-[bottom,opacity] duration-200 md:flex lg:right-6"
+        style="bottom: 1.75rem;"
     >
-        <a href="https://wa.me/254725646642?text=Hi%20Effective%20Media%2C%20I%20need%20a%20campaign%20quote." target="_blank" rel="noopener noreferrer" class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg ring-1 ring-black/10 transition hover:brightness-95" data-track-event="whatsapp_clicked" aria-label="WhatsApp">
-            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.94 14.5L2 22l5.63-1.47A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.09-1.12l-.29-.17-3.35.88.89-3.26-.19-.31A8 8 0 1 1 12 20Zm4.59-5.47c-.25-.12-1.47-.73-1.7-.81s-.39-.12-.56.12-.65.81-.8.98-.29.19-.54.06a10.78 10.78 0 0 1-3.17-1.95 11.87 11.87 0 0 1-2.2-2.73c-.23-.39.02-.6.17-.79s.39-.45.56-.68.06-.39-.02-.55-.56-1.36-.77-1.86-.39-.42-.56-.43h-.47a.9.9 0 0 0-.66.31c-.23.25-.86.84-.86 2.05s.88 2.38 1 2.55 1.7 2.6 4.11 3.65a14 14 0 0 0 1.9.79 4.6 4.6 0 0 0 2.12.13c.65-.09 2-.82 2.28-1.61s.28-1.48.19-1.62-.29-.2-.54-.32Z"/></svg>
+        <a href="{{ $whatsappHrefQuote }}" target="_blank" rel="noopener noreferrer" title="WhatsApp sales" class="fab-nudge inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366] text-white shadow-md ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:brightness-105" data-track-event="whatsapp_clicked" aria-label="WhatsApp">
+            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.94 14.5L2 22l5.63-1.47A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.09-1.12l-.29-.17-3.35.88.89-3.26-.19-.31A8 8 0 1 1 12 20Zm4.59-5.47c-.25-.12-1.47-.73-1.7-.81s-.39-.12-.56.12-.65.81-.8.98-.29.19-.54.06a10.78 10.78 0 0 1-3.17-1.95 11.87 11.87 0 0 1-2.2-2.73c-.23-.39.02-.6.17-.79s.39-.45.56-.68.06-.39-.02-.55-.56-1.36-.77-1.86-.39-.42-.56-.43h-.47a.9.9 0 0 0-.66.31c-.23.25-.86.84-.86 2.05s.88 2.38 1 2.55 1.7 2.6 4.11 3.65a14 14 0 0 0 1.9.79 4.6 4.6 0 0 0 2.12.13c.65-.09 2-.82 2.28-1.61s.28-1.48.19-1.62-.29-.2-.54-.32Z"/></svg>
         </a>
-        <a href="{{ route('quote') }}" class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#8b1e1a] text-white shadow-lg ring-1 ring-black/10 transition hover:bg-[#f04a2a]" data-track-event="quote_started" aria-label="Request quote">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h4m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <a href="{{ route('quote') }}" title="Request a quote" class="fab-nudge inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#8b1e1a] text-white shadow-md ring-1 ring-black/10 transition hover:-translate-y-0.5 hover:bg-[#f04a2a] hover:shadow-[0_0_20px_rgba(240,74,42,0.45)]" data-track-event="quote_started" aria-label="Request quote">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h4m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         </a>
-        <a href="{{ $telHref ?? 'tel:+254725646642' }}" class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#1f1f1f] text-white shadow-lg ring-1 ring-white/15 transition hover:bg-black/80" data-track-event="phone_clicked" aria-label="Call">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h1.28a2 2 0 011.89 1.34l1.1 3.29a2 2 0 01-.45 2.05l-1.3 1.3a16 16 0 006.59 6.59l1.32-1.32a2 2 0 012.05-.45l3.29 1.1A2 2 0 0121 18.72V20a2 2 0 01-2 2h-.25C9.07 21 3 14.93 3 6.25V6a2 2 0 012-2z"/></svg>
+        <a href="{{ $telHref ?? 'tel:+254725646642' }}" title="Call sales" class="fab-nudge inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#1f1f1f] text-white shadow-md ring-1 ring-white/15 transition hover:-translate-y-0.5 hover:bg-black/80 hover:shadow-lg" data-track-event="phone_clicked" aria-label="Call">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h1.28a2 2 0 011.89 1.34l1.1 3.29a2 2 0 01-.45 2.05l-1.3 1.3a16 16 0 006.59 6.59l1.32-1.32a2 2 0 012.05-.45l3.29 1.1A2 2 0 0121 18.72V20a2 2 0 01-2 2h-.25C9.07 21 3 14.93 3 6.25V6a2 2 0 012-2z"/></svg>
         </a>
     </div>
 
     <div class="fixed bottom-0 left-0 right-0 z-40 grid h-14 grid-cols-3 items-stretch border-t border-[#d9bca8] bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/90 lg:hidden" data-em-mobile-bar>
-        <a href="https://wa.me/254725646642?text=Hi%20Effective%20Media%2C%20I%20am%20interested%20in%20outdoor%20advertising.%20Please%20share%20available%20sites%20and%20rates." target="_blank" rel="noopener noreferrer" class="flex flex-col items-center justify-center gap-0.5 text-[#5c1514] transition active:bg-[#f7eee7]" data-track-event="whatsapp_clicked">
+        <a href="{{ $whatsappHrefExplore }}" target="_blank" rel="noopener noreferrer" class="flex flex-col items-center justify-center gap-0.5 text-[#5c1514] transition active:bg-[#f7eee7]" data-track-event="whatsapp_clicked">
             <svg class="h-6 w-6 text-[#128C7E]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.94 14.5L2 22l5.63-1.47A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.09-1.12l-.29-.17-3.35.88.89-3.26-.19-.31A8 8 0 1 1 12 20Zm4.59-5.47c-.25-.12-1.47-.73-1.7-.81s-.39-.12-.56.12-.65.81-.8.98-.29.19-.54.06a10.78 10.78 0 0 1-3.17-1.95 11.87 11.87 0 0 1-2.2-2.73c-.23-.39.02-.6.17-.79s.39-.45.56-.68.06-.39-.02-.55-.56-1.36-.77-1.86-.39-.42-.56-.43h-.47a.9.9 0 0 0-.66.31c-.23.25-.86.84-.86 2.05s.88 2.38 1 2.55 1.7 2.6 4.11 3.65a14 14 0 0 0 1.9.79 4.6 4.6 0 0 0 2.12.13c.65-.09 2-.82 2.28-1.61s.28-1.48.19-1.62-.29-.2-.54-.32Z"/></svg>
             <span class="text-[10px] font-semibold uppercase tracking-wide">WhatsApp</span>
         </a>
@@ -345,6 +431,7 @@
             <span class="text-[10px] font-semibold uppercase tracking-wide">Call</span>
         </a>
     </div>
+    @endif
 
     <div class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" data-download-modal>
         <div class="w-full max-w-md rounded-lg bg-white p-5">
@@ -365,6 +452,76 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            window.addEventListener('pageshow', () => {
+                document.body.classList.remove('em-nav-loading', 'em-nav-done');
+            });
+
+            let lastSameLinkNavAt = { href: '', t: 0 };
+            document.addEventListener(
+                'click',
+                (event) => {
+                    const anchor = event.target.closest('a[href]');
+                    if (
+                        !(anchor instanceof HTMLAnchorElement)
+                        || event.defaultPrevented
+                        || event.metaKey
+                        || event.ctrlKey
+                        || event.shiftKey
+                        || event.altKey
+                        || anchor.target === '_blank'
+                        || anchor.hasAttribute('download')
+                    ) {
+                        return;
+                    }
+
+                    let hrefAttr = anchor.getAttribute('href') || '';
+                    if (
+                        hrefAttr === ''
+                        || hrefAttr.startsWith('#')
+                        || hrefAttr.startsWith('javascript:')
+                        || hrefAttr.startsWith('mailto:')
+                        || hrefAttr.startsWith('tel:')
+                    ) {
+                        return;
+                    }
+
+                    let docUrl = null;
+
+                    try {
+                        docUrl = new URL(hrefAttr, window.location.href);
+                    } catch {
+                        return;
+                    }
+
+                    if (docUrl.origin !== window.location.origin) return;
+                    const sameExact =
+                        docUrl.pathname === window.location.pathname && docUrl.search === window.location.search;
+                    if (sameExact && docUrl.hash) return;
+
+                    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+                    if (
+                        docUrl.pathname + docUrl.search === window.location.pathname + window.location.search
+                        && lastSameLinkNavAt.href === docUrl.href
+                        && nowMs - lastSameLinkNavAt.t < 400
+                    ) {
+                        event.preventDefault();
+
+                        return;
+                    }
+
+                    lastSameLinkNavAt = { href: docUrl.href, t: nowMs };
+
+                    document.body.classList.remove('em-nav-done');
+                    document.body.classList.add('em-nav-loading');
+                    window.setTimeout(() => {
+                        if (!document.body.classList.contains('em-nav-loading')) return;
+                        document.body.classList.replace('em-nav-loading', 'em-nav-done');
+                    }, 8000);
+                },
+                true,
+            );
+
             const siteHeader = document.querySelector('[data-site-header]');
             const topBar = document.querySelector('[data-top-contact-bar]');
             const mainNavbar = document.querySelector('[data-main-navbar]');
@@ -373,6 +530,9 @@
                 const offset = Math.ceil(siteHeader.getBoundingClientRect().height);
                 document.documentElement.style.setProperty('--em-header-offset', `${offset}px`);
             };
+            const navRow = document.querySelector('[data-navbar-row]');
+            const logo = document.querySelector('[data-site-logo]');
+
             const updateStickyState = () => {
                 if (!siteHeader || !topBar || !mainNavbar) return;
                 const isScrolled = window.scrollY > 18;
@@ -383,26 +543,61 @@
                 topBar.classList.toggle('max-h-0', isScrolled);
                 topBar.classList.toggle('max-h-[52px]', !isScrolled);
                 mainNavbar.classList.toggle('bg-white', isScrolled);
-                mainNavbar.classList.toggle('shadow-[0_10px_25px_-18px_rgba(0,0,0,0.45)]', isScrolled);
+                mainNavbar.classList.toggle('is-compact-nav', isScrolled);
+                mainNavbar.classList.toggle('shadow-[0_18px_40px_-26px_rgba(25,13,13,0.28)]', isScrolled);
+
+                navRow?.classList.toggle('py-2', isScrolled);
+                navRow?.classList.toggle('lg:py-3', isScrolled);
+                navRow?.classList.toggle('py-3', !isScrolled);
+                navRow?.classList.toggle('lg:py-4', !isScrolled);
+
+                logo?.classList.toggle('h-12', !isScrolled);
+                logo?.classList.toggle('w-12', !isScrolled);
+                logo?.classList.toggle('h-10', isScrolled);
+                logo?.classList.toggle('w-10', isScrolled);
+
                 updateHeaderOffsets();
             };
 
             const menuButton = document.querySelector('[data-mobile-menu-toggle]');
-            const mobileMenu = document.querySelector('[data-mobile-menu]');
-            if (menuButton && mobileMenu) {
-                const closeMobileMenu = () => {
-                    mobileMenu.classList.add('hidden');
-                    menuButton.setAttribute('aria-expanded', 'false');
-                    document.body.classList.remove('overflow-hidden');
-                };
+            const mobileDrawer = document.querySelector('[data-mobile-drawer]');
+            const mobileBackdrop = document.querySelector('[data-mobile-drawer-backdrop]');
+            const mobileCloseBtns = document.querySelectorAll('[data-mobile-menu-close]');
+
+            const closeMobileDrawer = () => {
+                if (!mobileDrawer) return;
+                mobileDrawer.classList.remove('is-open');
+                menuButton?.setAttribute('aria-expanded', 'false');
+                document.body.classList.remove('overflow-hidden');
+                window.setTimeout(() => {
+                    if (!mobileDrawer.classList.contains('is-open')) mobileDrawer.setAttribute('hidden', '');
+                }, 280);
+            };
+
+            const openMobileDrawer = () => {
+                if (!mobileDrawer) return;
+                mobileDrawer.removeAttribute('hidden');
+                menuButton?.setAttribute('aria-expanded', 'true');
+                document.body.classList.add('overflow-hidden');
+                window.requestAnimationFrame(() => mobileDrawer.classList.add('is-open'));
+            };
+
+            if (menuButton && mobileDrawer) {
                 menuButton.addEventListener('click', () => {
-                    const isOpen = !mobileMenu.classList.contains('hidden');
-                    mobileMenu.classList.toggle('hidden');
-                    menuButton.setAttribute('aria-expanded', String(!isOpen));
-                    document.body.classList.toggle('overflow-hidden', isOpen === false);
+                    const isOpen = mobileDrawer.classList.contains('is-open');
+                    if (isOpen) closeMobileDrawer();
+                    else openMobileDrawer();
                 });
-                document.querySelectorAll('[data-mobile-menu] a').forEach((anchor) => {
-                    anchor.addEventListener('click', closeMobileMenu);
+                mobileBackdrop?.addEventListener('click', closeMobileDrawer);
+                mobileCloseBtns.forEach((btn) => btn.addEventListener('click', closeMobileDrawer));
+                mobileDrawer.querySelectorAll('a').forEach((anchor) => {
+                    anchor.addEventListener('click', closeMobileDrawer);
+                });
+                mobileDrawer.querySelectorAll('button[data-open-download-modal]').forEach((btn) => {
+                    btn.addEventListener('click', closeMobileDrawer);
+                });
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') closeMobileDrawer();
                 });
             }
 
@@ -501,10 +696,25 @@
                 });
             }
 
-            // Speed up page transitions by prefetching likely next pages.
+            // Lightweight prefetch — avoid competing with the active navigation on slow networks.
             const prefetched = new Set();
-            const maxPrefetch = 12;
+            const maxPrefetch = 6;
             let prefetchCount = 0;
+
+            let saveDataPreferred = false;
+            let connMedium = '';
+
+            try {
+                const nc = navigator.connection;
+                saveDataPreferred = Boolean(nc?.saveData);
+                connMedium = nc?.effectiveType ? String(nc.effectiveType) : '';
+            } catch {
+                saveDataPreferred = false;
+            }
+
+            const shouldSkipPrefetch =
+                saveDataPreferred || connMedium === 'slow-2g' || connMedium === '2g';
+
             const sameOriginLinks = Array.from(document.querySelectorAll('a[href]'))
                 .filter((anchor) => {
                     const href = anchor.getAttribute('href') || '';
@@ -518,7 +728,7 @@
                 });
 
             const prefetch = (href) => {
-                if (prefetchCount >= maxPrefetch || prefetched.has(href)) return;
+                if (shouldSkipPrefetch || prefetchCount >= maxPrefetch || prefetched.has(href)) return;
                 prefetched.add(href);
                 prefetchCount += 1;
                 const link = document.createElement('link');
@@ -536,19 +746,6 @@
                 anchor.addEventListener('focus', trigger, { passive: true, once: true });
             });
 
-            if ('IntersectionObserver' in window) {
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach((entry) => {
-                        if (!entry.isIntersecting) return;
-                        const anchor = entry.target;
-                        if (anchor instanceof HTMLAnchorElement) prefetch(anchor.href);
-                        observer.unobserve(anchor);
-                    });
-                }, { rootMargin: '150px' });
-
-                sameOriginLinks.slice(0, 20).forEach((anchor) => observer.observe(anchor));
-            }
-
             const siteFooter = document.querySelector('[data-site-footer]');
             const desktopFab = document.querySelector('[data-em-desktop-fab]');
             const mobileQuickBar = document.querySelector('[data-em-mobile-bar]');
@@ -558,7 +755,7 @@
                 const vh = window.innerHeight;
                 let overlap = Math.max(0, vh - rect.top);
                 overlap = Math.min(overlap, 200);
-                const base = 20;
+                const base = 28;
                 if (desktopFab instanceof HTMLElement) {
                     desktopFab.style.bottom = `${base + overlap}px`;
                     desktopFab.style.opacity = overlap > 8 ? '0.92' : '1';

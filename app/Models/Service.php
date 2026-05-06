@@ -15,7 +15,10 @@ class Service extends Model
         'title',
         'slug',
         'summary',
+        'image_path',
+        'icon',
         'is_active',
+        'is_visible_public',
         'sort_order',
     ];
 
@@ -26,5 +29,6 @@ class Service extends Model
      */
     protected $casts = [
         'is_active' => 'bool',
+        'is_visible_public' => 'bool',
     ];
 }

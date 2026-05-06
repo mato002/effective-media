@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuoteRequest extends Model
 {
@@ -27,5 +28,13 @@ class QuoteRequest extends Model
         'campaign_slug',
         'message',
         'source',
+        'status',
+        'internal_notes',
+        'assigned_to',
     ];
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
 }

@@ -8,7 +8,9 @@ use App\Models\ProfileDownloadRequest;
 use App\Models\QuoteRequest;
 use App\Models\Service;
 use App\Services\Cms\HomepageContentService;
+use App\Support\CachedSiteProfile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
@@ -48,7 +50,7 @@ class PageController extends Controller
     {
         $payload = $this->homepageContentService->getHomepagePayload();
         $companyProfiles = $this->getCompanyProfiles();
-        $profileContent = config('effective_media_profile');
+        $profileContent = CachedSiteProfile::content();
 
         $services = $payload['services']->isNotEmpty() ? $payload['services'] : collect(
             array_map(static fn (string $service): array => ['title' => $service], $this->defaultServices)
@@ -65,7 +67,7 @@ class PageController extends Controller
     public function whoWeAre(): View
     {
         return view('pages.who-we-are', [
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
             'companyProfiles' => $this->getCompanyProfiles(),
         ]);
     }
@@ -73,6 +75,7 @@ class PageController extends Controller
     public function whatWeDo(): View
     {
         $services = Service::query()
+            ->select(['id', 'title', 'slug', 'summary', 'sort_order', 'is_active'])
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('title')
@@ -83,13 +86,13 @@ class PageController extends Controller
                 ? $services
                 : collect(array_map(static fn (string $service): array => ['title' => $service], $this->defaultServices)),
             'companyProfiles' => $this->getCompanyProfiles(),
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
         ]);
     }
 
     public function serviceShowcase(string $serviceSlug): View
     {
-        $profileContent = config('effective_media_profile');
+        $profileContent = CachedSiteProfile::content();
         $serviceDetails = $profileContent['service_details'] ?? [];
 
         $serviceLibrary = [
@@ -198,34 +201,45 @@ class PageController extends Controller
     {
         return view('pages.portfolio', [
             'items' => PortfolioItem::query()
+                ->select([
+                    'id',
+                    'title',
+                    'client_name',
+                    'category',
+                    'campaign_location',
+                    'description',
+                    'image_path',
+                    'sort_order',
+                    'is_published',
+                ])
                 ->where('is_published', true)
                 ->orderBy('sort_order')
                 ->orderByDesc('id')
                 ->limit(9)
                 ->get(),
             'companyProfiles' => $this->getCompanyProfiles(),
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
         ]);
     }
 
     public function campaignPlanner(): View
     {
         return view('pages.smart-campaign-planner', [
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
         ]);
     }
 
     public function contactUs(): View
     {
         return view('pages.contact-us', [
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
         ]);
     }
 
     public function quote(Request $request): View
     {
         return view('pages.quote', [
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
             'prefill' => $request->only([
                 'location',
                 'county',
@@ -267,10 +281,12 @@ class PageController extends Controller
             QuoteRequest::query()->create([
                 ...$validated,
                 'source' => $validated['source'] ?? 'website_quote_form',
+                'status' => 'new',
             ]);
         }
 
-        $adminEmail = config('effective_media_profile.contacts.email') ?: config('mail.from.address');
+        $contacts = CachedSiteProfile::content()['contacts'] ?? [];
+        $adminEmail = (is_array($contacts) ? ($contacts['email'] ?? null) : null) ?: config('mail.from.address');
         if (is_string($adminEmail) && $adminEmail !== '') {
             Mail::raw(
                 "New quote request from {$validated['full_name']} ({$validated['email']}, {$validated['phone']}). Location: " . ($validated['location'] ?? 'N/A') . ", Media: " . ($validated['media_type'] ?? 'N/A') . ", Budget: " . ($validated['budget_range'] ?? 'N/A'),
@@ -291,7 +307,7 @@ class PageController extends Controller
     public function faqs(): View
     {
         return view('pages.faqs', [
-            'profileContent' => config('effective_media_profile'),
+            'profileContent' => CachedSiteProfile::content(),
         ]);
     }
 
@@ -328,7 +344,16 @@ class PageController extends Controller
             'filename' => ['required', 'string', 'max:255'],
         ]);
 
-        if (Schema::hasTable('profile_download_requests')) {
+        $leadCapture = true;
+
+        try {
+            $leadCapture = (bool) (app(\App\Services\Portal\PortalSettingsService::class)
+                ->getPublicSnapshot()['documents']['lead_capture_enabled'] ?? true);
+        } catch (\Throwable) {
+            $leadCapture = true;
+        }
+
+        if ($leadCapture && Schema::hasTable('profile_download_requests')) {
             ProfileDownloadRequest::query()->create([
                 ...$validated,
                 'source' => 'profile_download',
@@ -342,7 +367,7 @@ class PageController extends Controller
 
     public function townLanding(string $town, string $type): View
     {
-        $profileContent = config('effective_media_profile');
+        $profileContent = CachedSiteProfile::content();
         $normalizedTown = Str::title(str_replace('-', ' ', $town));
         $points = collect($profileContent['coverage_map_points'] ?? []);
         $reach = collect($profileContent['reach'] ?? []);
@@ -391,6 +416,28 @@ class PageController extends Controller
      * @return Collection<int, array{name:string,url:string,path:string}>
      */
     private function getCompanyProfiles(): Collection
+    {
+        $key = 'site_company_profile_pdfs_v2';
+
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            return collect(array_values($cached));
+        }
+
+        if ($cached !== null) {
+            Cache::forget($key);
+        }
+
+        $items = $this->scanFilesystemCompanyProfiles()->values()->all();
+        Cache::put($key, $items, now()->addMinutes(30));
+
+        return collect($items);
+    }
+
+    /**
+     * @return Collection<int, array{name:string,url:string,path:string}>
+     */
+    private function scanFilesystemCompanyProfiles(): Collection
     {
         $rootLevelProfiles = collect(File::files(base_path()))
             ->filter(static fn (\SplFileInfo $file): bool => strtolower($file->getExtension()) === 'pdf');
@@ -493,6 +540,7 @@ class PageController extends Controller
             public_path('assets'),
             storage_path('app/public'),
             storage_path('app/public/images'),
+            storage_path('app/public/portal-branding'),
         ];
 
         foreach ($candidateDirectories as $directory) {

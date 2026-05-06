@@ -62,9 +62,32 @@
             @include('admin.partials.topbar')
 
             <main class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-                @if (session('status'))
+                @php
+                    $layoutFlashStatus = session('status');
+                    $layoutFlashMessage = match ($layoutFlashStatus) {
+                        'profile-updated', 'password-updated' => null,
+                        'verification-link-sent' => __('A new verification link has been sent to your email address.'),
+                        default => is_string($layoutFlashStatus) ? $layoutFlashStatus : null,
+                    };
+                @endphp
+                @if ($layoutFlashMessage)
                     <div class="admin-glass-card mb-6 border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-100" role="status">
-                        {{ session('status') }}
+                        {{ $layoutFlashMessage }}
+                    </div>
+                @endif
+                @if (session('flash_warning'))
+                    <div class="admin-glass-card mb-6 border-amber-300/90 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-100" role="status">
+                        {{ session('flash_warning') }}
+                    </div>
+                @endif
+                @if ($errors->any())
+                    <div class="admin-glass-card mb-6 border-rose-200/80 bg-rose-50/90 px-4 py-3 text-sm font-semibold text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-100" role="alert">
+                        <p class="mb-2">Please correct the highlighted fields.</p>
+                        <ul class="list-inside list-disc text-xs font-medium">
+                            @foreach ($errors->all() as $err)
+                                <li>{{ $err }}</li>
+                            @endforeach
+                        </ul>
                     </div>
                 @endif
                 @yield('content')

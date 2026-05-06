@@ -3,14 +3,9 @@
 @section('title', 'Smart Campaign Planner | Effective Media')
 
 @section('content')
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""
-    >
+    @include('components.em-leaflet-loader-inline')
     <section class="relative overflow-hidden">
-        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=2000&q=80');"></div>
+        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1400&q=72');"></div>
         <div class="absolute inset-0 bg-[linear-gradient(115deg,rgba(92,21,20,0.9),rgba(92,21,20,0.75),rgba(23,23,23,0.66))]"></div>
         <div class="em-container relative py-16 lg:py-20">
             <x-ui.section-heading label="Smart Campaign Planner" title="Plan Your Campaign by Location" description="Use location, audience, and media type inputs to build focused, high-visibility campaign recommendations." light="true" />
@@ -133,11 +128,6 @@
         </div>
     </section>
 
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""
-    ></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('planner-form');
@@ -150,6 +140,48 @@
             const mediaTypeSelect = form.querySelector('[name="media_type"]');
             const townHelp = form.querySelector('[data-town-help]');
             const mapPoints = @json($mapPoints);
+
+            const syncTownOptions = (county, preferredTown = '') => {
+                if (!locationSelect) return;
+                locationSelect.disabled = !county;
+                const current = preferredTown || locationSelect.value;
+                const filteredTowns = county
+                    ? mapPoints.filter((point) => point.county === county).map((point) => point.town)
+                    : mapPoints.map((point) => point.town);
+                const uniqueTowns = [...new Set(filteredTowns)].sort((a, b) => a.localeCompare(b));
+
+                locationSelect.innerHTML = '<option value="">Select town</option>';
+                uniqueTowns.forEach((town) => {
+                    const option = document.createElement('option');
+                    option.value = town;
+                    option.textContent = town;
+                    locationSelect.appendChild(option);
+                });
+
+                if (current && uniqueTowns.includes(current)) {
+                    locationSelect.value = current;
+                } else if (uniqueTowns.length > 0) {
+                    locationSelect.value = uniqueTowns[0];
+                } else {
+                    locationSelect.value = '';
+                }
+
+                if (townHelp) {
+                    if (!county) {
+                        townHelp.textContent = 'Select a county first to load mapped towns.';
+                        townHelp.classList.remove('text-[#b42318]');
+                        townHelp.classList.add('text-[#7f6d62]');
+                    } else if (uniqueTowns.length === 0) {
+                        townHelp.textContent = `No mapped towns yet for ${county}.`;
+                        townHelp.classList.remove('text-[#7f6d62]');
+                        townHelp.classList.add('text-[#b42318]');
+                    } else {
+                        townHelp.textContent = `${uniqueTowns.length} mapped town(s) available in ${county}.`;
+                        townHelp.classList.remove('text-[#b42318]');
+                        townHelp.classList.add('text-[#7f6d62]');
+                    }
+                }
+            };
 
             form.addEventListener('submit', (event) => {
                 event.preventDefault();
@@ -174,7 +206,11 @@
                 }
             });
 
-            if (mapEl && typeof L !== 'undefined' && mapPoints.length) {
+            syncTownOptions(countySelect?.value || '', locationSelect?.value || '');
+
+            const initPlannerMap = () => {
+                if (!mapEl || !mapPoints.length) return;
+
                 const map = L.map(mapEl).setView([-0.7, 37.2], 6);
                 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -204,48 +240,6 @@
 
                 map.fitBounds(bounds, { padding: [24, 24] });
 
-                const syncTownOptions = (county, preferredTown = '') => {
-                    if (!locationSelect) return;
-                    locationSelect.disabled = !county;
-                    const current = preferredTown || locationSelect.value;
-                    const filteredTowns = county
-                        ? mapPoints.filter((point) => point.county === county).map((point) => point.town)
-                        : mapPoints.map((point) => point.town);
-                    const uniqueTowns = [...new Set(filteredTowns)].sort((a, b) => a.localeCompare(b));
-
-                    locationSelect.innerHTML = '<option value="">Select town</option>';
-                    uniqueTowns.forEach((town) => {
-                        const option = document.createElement('option');
-                        option.value = town;
-                        option.textContent = town;
-                        locationSelect.appendChild(option);
-                    });
-
-                    if (current && uniqueTowns.includes(current)) {
-                        locationSelect.value = current;
-                    } else if (uniqueTowns.length > 0) {
-                        locationSelect.value = uniqueTowns[0];
-                    } else {
-                        locationSelect.value = '';
-                    }
-
-                    if (townHelp) {
-                        if (!county) {
-                            townHelp.textContent = 'Select a county first to load mapped towns.';
-                            townHelp.classList.remove('text-[#b42318]');
-                            townHelp.classList.add('text-[#7f6d62]');
-                        } else if (uniqueTowns.length === 0) {
-                            townHelp.textContent = `No mapped towns yet for ${county}.`;
-                            townHelp.classList.remove('text-[#7f6d62]');
-                            townHelp.classList.add('text-[#b42318]');
-                        } else {
-                            townHelp.textContent = `${uniqueTowns.length} mapped town(s) available in ${county}.`;
-                            townHelp.classList.remove('text-[#b42318]');
-                            townHelp.classList.add('text-[#7f6d62]');
-                        }
-                    }
-                };
-
                 countySelect?.addEventListener('change', () => {
                     const selectedCounty = countySelect.value;
                     syncTownOptions(selectedCounty);
@@ -269,9 +263,30 @@
                         map.setView(marker.getLatLng(), 11);
                     }
                 });
+            };
 
-                // Initialize dependent towns based on current county selection.
-                syncTownOptions(countySelect?.value || '', locationSelect?.value || '');
+            if (mapEl && typeof window.emLoadLeaflet === 'function') {
+                const start = () =>
+                    window
+                        .emLoadLeaflet({ withMarkerCluster: false })
+                        .then(() => requestAnimationFrame(initPlannerMap))
+                        .catch((err) => console.warn('Planner map failed to load', err));
+
+                if ('IntersectionObserver' in window) {
+                    const io = new IntersectionObserver(
+                        (entries) => {
+                            entries.forEach((entry) => {
+                                if (!entry.isIntersecting) return;
+                                io.disconnect();
+                                start();
+                            });
+                        },
+                        { rootMargin: '200px 0px', threshold: 0.02 },
+                    );
+                    io.observe(mapEl);
+                } else {
+                    start();
+                }
             }
         });
     </script>

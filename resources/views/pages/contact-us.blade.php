@@ -3,15 +3,10 @@
 @section('title', 'Contact Us | Effective Media')
 
 @section('content')
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""
-    >
+    @include('components.em-leaflet-loader-inline')
 
     <section class="relative overflow-hidden">
-        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=2000&q=80');"></div>
+        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1400&q=72');"></div>
         <div class="absolute inset-0 bg-[linear-gradient(115deg,rgba(92,21,20,0.9),rgba(92,21,20,0.75),rgba(23,23,23,0.66))]"></div>
         <div class="em-container relative py-16 lg:py-20">
             <x-ui.section-heading label="Contact Us" title="Let's Plan Your Next Outdoor Campaign" description="Share your campaign brief and we will recommend strategic locations, media formats, and execution timelines." light="true" />
@@ -61,30 +56,46 @@
         </div>
     </section>
 
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""
-    ></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const mapElement = document.getElementById('office-map');
+            if (!mapElement || typeof window.emLoadLeaflet !== 'function') return;
 
-            if (!mapElement || typeof L === 'undefined') {
-                return;
+            const initOfficeMap = () => {
+                const officeCoords = [-1.286389, 36.817223];
+                const map = L.map(mapElement).setView(officeCoords, 13);
+
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                }).addTo(map);
+
+                L.marker(officeCoords)
+                    .addTo(map)
+                    .bindPopup('<strong>Effective Media</strong><br>Nairobi, Kenya')
+                    .openPopup();
+            };
+
+            const start = () =>
+                window
+                    .emLoadLeaflet({ withMarkerCluster: false })
+                    .then(() => requestAnimationFrame(initOfficeMap))
+                    .catch((err) => console.warn('Office map failed to load', err));
+
+            if ('IntersectionObserver' in window) {
+                const io = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            if (!entry.isIntersecting) return;
+                            io.disconnect();
+                            start();
+                        });
+                    },
+                    { rootMargin: '200px 0px', threshold: 0.02 },
+                );
+                io.observe(mapElement);
+            } else {
+                start();
             }
-
-            const officeCoords = [-1.286389, 36.817223];
-            const map = L.map(mapElement).setView(officeCoords, 13);
-
-            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            }).addTo(map);
-
-            L.marker(officeCoords)
-                .addTo(map)
-                .bindPopup('<strong>Effective Media</strong><br>Nairobi, Kenya')
-                .openPopup();
         });
     </script>
 @endsection

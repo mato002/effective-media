@@ -4,18 +4,58 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProfileDownloadRequest;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProfileDownloadRequestController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $query = ProfileDownloadRequest::query()->latest();
+
+        $state = $request->query('state', 'active');
+        if ($state === 'archived') {
+            $query->archived();
+        } elseif ($state === 'active') {
+            $query->active();
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $like = '%'.$search.'%';
+            $query->where(function ($q) use ($like): void {
+                $q->where('full_name', 'like', $like)
+                    ->orWhere('company_name', 'like', $like)
+                    ->orWhere('email', 'like', $like)
+                    ->orWhere('phone', 'like', $like)
+                    ->orWhere('filename', 'like', $like);
+            });
+        }
+
+        if ($request->filled('document')) {
+            $query->where('filename', $request->query('document'));
+        }
+
+        if ($request->filled('from')) {
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($request->query('from')));
+            } catch (\Throwable) {
+            }
+        }
+
+        if ($request->filled('to')) {
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($request->query('to')));
+            } catch (\Throwable) {
+            }
+        }
+
         return view('admin.profile-downloads.index', [
-            'downloads' => ProfileDownloadRequest::query()
-                ->latest()
-                ->paginate(20),
+            'downloads' => $query->paginate(20)->withQueryString(),
+            'documents' => ProfileDownloadRequest::query()->distinct()->orderBy('filename')->pluck('filename'),
         ]);
     }
 
@@ -35,11 +75,25 @@ class ProfileDownloadRequestController extends Controller
             ->with('status', 'Profile download request deleted.');
     }
 
-    public function export(): StreamedResponse
+    public function archive(ProfileDownloadRequest $profileDownload): RedirectResponse
     {
-        $filename = 'profile-download-requests-' . now()->format('Y-m-d-His') . '.csv';
+        $profileDownload->update(['archived_at' => now()]);
 
-        return response()->streamDownload(function (): void {
+        return redirect()->back()->with('status', 'Lead archived.');
+    }
+
+    public function restore(ProfileDownloadRequest $profileDownload): RedirectResponse
+    {
+        $profileDownload->update(['archived_at' => null]);
+
+        return redirect()->back()->with('status', 'Lead restored.');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $filename = 'profile-download-requests-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($request): void {
             $output = fopen('php://output', 'w');
             fputcsv($output, [
                 'id',
@@ -49,25 +103,64 @@ class ProfileDownloadRequestController extends Controller
                 'email',
                 'filename',
                 'source',
+                'archived_at',
                 'created_at',
             ]);
 
-            ProfileDownloadRequest::query()
-                ->latest('id')
-                ->chunk(200, static function ($downloads) use ($output): void {
-                    foreach ($downloads as $download) {
-                        fputcsv($output, [
-                            $download->id,
-                            $download->full_name,
-                            $download->company_name,
-                            $download->phone,
-                            $download->email,
-                            $download->filename,
-                            $download->source,
-                            optional($download->created_at)->toDateTimeString(),
-                        ]);
-                    }
+            $query = ProfileDownloadRequest::query()->latest('id');
+
+            $state = $request->query('state');
+            if ($state === 'archived') {
+                $query->archived();
+            } elseif ($state !== 'all') {
+                $query->active();
+            }
+
+            $search = trim((string) $request->query('search', ''));
+            if ($search !== '') {
+                $like = '%'.$search.'%';
+                $query->where(function ($q) use ($like): void {
+                    $q->where('full_name', 'like', $like)
+                        ->orWhere('company_name', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('phone', 'like', $like)
+                        ->orWhere('filename', 'like', $like);
                 });
+            }
+
+            if ($request->filled('document')) {
+                $query->where('filename', $request->query('document'));
+            }
+
+            if ($request->filled('from')) {
+                try {
+                    $query->whereDate('created_at', '>=', Carbon::parse($request->query('from')));
+                } catch (\Throwable) {
+                }
+            }
+
+            if ($request->filled('to')) {
+                try {
+                    $query->whereDate('created_at', '<=', Carbon::parse($request->query('to')));
+                } catch (\Throwable) {
+                }
+            }
+
+            $query->chunk(200, static function ($downloads) use ($output): void {
+                foreach ($downloads as $download) {
+                    fputcsv($output, [
+                        $download->id,
+                        $download->full_name,
+                        $download->company_name,
+                        $download->phone,
+                        $download->email,
+                        $download->filename,
+                        $download->source,
+                        optional($download->archived_at)->toDateTimeString(),
+                        optional($download->created_at)->toDateTimeString(),
+                    ]);
+                }
+            });
 
             fclose($output);
         }, $filename, [

@@ -3,20 +3,7 @@
 @section('title', 'Portfolio | Effective Media')
 
 @section('content')
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin=""
-    >
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
-    >
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
-    >
+    @include('components.em-leaflet-loader-inline')
     @php
         $reachRows = collect($profileContent['reach'] ?? []);
         $mapPoints = collect($profileContent['coverage_map_points'] ?? []);
@@ -28,7 +15,7 @@
     @endphp
 
     <section class="relative overflow-hidden">
-        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=2000&q=80');"></div>
+        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1400&q=72');"></div>
         <div class="absolute inset-0 bg-[linear-gradient(115deg,rgba(92,21,20,0.9),rgba(92,21,20,0.75),rgba(23,23,23,0.66))]"></div>
         <div class="em-container relative py-16 lg:py-20">
             <x-ui.section-heading label="Portfolio" title="Campaign Execution Gallery" description="Real campaign placements across street lights, billboards, office branding, pavement media, and activations." light="true" />
@@ -208,6 +195,41 @@
         </div>
     </section>
 
+    <div
+        id="em-portfolio-lightbox"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="em-portfolio-lightbox-title"
+        data-portfolio-lightbox
+    >
+        <div class="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#1a1212] shadow-[0_28px_90px_-28px_rgba(0,0,0,0.75)]">
+            <div class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                    <p id="em-portfolio-lightbox-title" class="text-lg font-black text-white" data-lightbox-title>Campaign</p>
+                    <div class="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wide text-[#f7c4a8]">
+                        <span data-lightbox-media></span>
+                        <span data-lightbox-location></span>
+                    </div>
+                </div>
+                <button type="button" class="rounded-lg border border-white/20 px-3 py-1 text-xs font-semibold text-white hover:bg-white/10" data-portfolio-lightbox-close>Close</button>
+            </div>
+            <div class="grid max-h-[calc(92vh-88px)] lg:grid-cols-[1.25fr_1fr]">
+                <div class="relative max-h-[52vh] bg-black lg:max-h-none">
+                    <img src="" alt="" class="h-full max-h-[52vh] w-full object-contain lg:max-h-[calc(92vh-88px)]" data-lightbox-image hidden>
+                    <div class="flex h-60 items-center justify-center text-sm text-white/60 lg:h-full" data-lightbox-no-image>Image preview unavailable</div>
+                </div>
+                <div class="space-y-3 overflow-y-auto p-5 text-sm text-[#e8d8cc]">
+                    <p class="text-xs uppercase tracking-[0.16em] text-[#f7b396]">Client</p>
+                    <p class="font-semibold text-white" data-lightbox-client>—</p>
+                    <p class="text-xs uppercase tracking-[0.16em] text-[#f7b396] mt-4">Creative notes</p>
+                    <p class="leading-relaxed" data-lightbox-caption>—</p>
+                    <a href="{{ route('quote') }}" class="mt-6 inline-flex rounded-lg bg-[#f04a2a] px-4 py-2 text-xs font-bold text-white hover:bg-[#ff6f4d]" data-lightbox-quote>Plan similar campaign</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <section class="em-angled py-14">
         <div class="em-container text-center">
             <h2 class="text-3xl font-bold text-white sm:text-4xl">Ready to Launch in High-Traffic Locations?</h2>
@@ -219,48 +241,102 @@
         </div>
     </section>
 
-    <script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""
-    ></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const buttons = Array.from(document.querySelectorAll('[data-filter]'));
-            const cards = Array.from(document.querySelectorAll('[data-category]'));
+            const lightbox = document.querySelector('[data-portfolio-lightbox]');
+            const openLightbox = (card) => {
+                if (!lightbox) return;
+                const title = card.getAttribute('data-portfolio-title') || 'Campaign';
+                const image = card.getAttribute('data-portfolio-image') || '';
+                const location = card.getAttribute('data-portfolio-location') || '';
+                const media = card.getAttribute('data-portfolio-media') || '';
+                const client = card.getAttribute('data-portfolio-client') || '';
+                const description = card.getAttribute('data-portfolio-description') || '';
 
-            if (!buttons.length || !cards.length) return;
+                lightbox.querySelector('[data-lightbox-title]').textContent = title;
+                lightbox.querySelector('[data-lightbox-media]').textContent = media || 'Outdoor';
+                lightbox.querySelector('[data-lightbox-location]').textContent = location || 'Kenya';
+                lightbox.querySelector('[data-lightbox-client]').textContent = client || 'Effective Media partner';
+                lightbox.querySelector('[data-lightbox-caption]').textContent = description || 'Campaign visuals and rollout details are curated from published CMS assets.';
 
-            const applyFilter = (selectedFilter) => {
-                const normalizedSelected = String(selectedFilter || 'All').toLowerCase();
-                buttons.forEach((btn) => btn.classList.remove('bg-[#8b1e1a]', 'text-white'));
-                buttons.forEach((btn) => {
-                    const normalizedLabel = String(btn.dataset.filter || '').toLowerCase().replace(/\s+/g, '-');
-                    if (normalizedSelected === 'all' || normalizedSelected === normalizedLabel) {
-                        btn.classList.add('bg-[#8b1e1a]', 'text-white');
-                    }
-                });
-                cards.forEach((card) => {
-                    const normalizedCard = String(card.dataset.category || '').toLowerCase().replace(/\s+/g, '-');
-                    const match = normalizedSelected === 'all' || normalizedSelected === normalizedCard;
-                    card.style.display = match ? 'block' : 'none';
-                });
+                const img = lightbox.querySelector('[data-lightbox-image]');
+                const fallback = lightbox.querySelector('[data-lightbox-no-image]');
+                if (image && img instanceof HTMLImageElement) {
+                    img.src = image;
+                    img.alt = title;
+                    img.removeAttribute('hidden');
+                    fallback?.setAttribute('hidden', '');
+                } else if (img) {
+                    img.setAttribute('hidden', '');
+                    fallback?.removeAttribute('hidden');
+                }
+
+                const quote = lightbox.querySelector('[data-lightbox-quote]');
+                if (quote instanceof HTMLAnchorElement) {
+                    const params = new URLSearchParams({ campaign: title, location, media_type: media });
+                    quote.href = `{{ route('quote') }}?${params.toString()}`;
+                }
+
+                lightbox.classList.remove('hidden');
+                lightbox.classList.add('flex');
+                document.body.classList.add('overflow-hidden');
             };
 
-            buttons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    applyFilter(button.dataset.filter || 'All');
+            const closeLightbox = () => {
+                if (!lightbox) return;
+                lightbox.classList.add('hidden');
+                lightbox.classList.remove('flex');
+                document.body.classList.remove('overflow-hidden');
+            };
+
+            document.querySelectorAll('[data-portfolio-lightbox-open]').forEach((button) => {
+                button.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const card = button.closest('[data-portfolio-card]');
+                    if (card) openLightbox(card);
                 });
             });
 
-            const queryFilter = new URLSearchParams(window.location.search).get('filter');
-            applyFilter(queryFilter || 'All');
+            lightbox?.querySelector('[data-portfolio-lightbox-close]')?.addEventListener('click', closeLightbox);
+            lightbox?.addEventListener('click', (event) => {
+                if (event.target === lightbox) closeLightbox();
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') closeLightbox();
+            });
+
+            const buttons = Array.from(document.querySelectorAll('[data-filter]'));
+            const cards = Array.from(document.querySelectorAll('[data-category]'));
+
+            if (buttons.length && cards.length) {
+                const applyFilter = (selectedFilter) => {
+                    const normalizedSelected = String(selectedFilter || 'All').toLowerCase();
+                    buttons.forEach((btn) => btn.classList.remove('bg-[#8b1e1a]', 'text-white'));
+                    buttons.forEach((btn) => {
+                        const normalizedLabel = String(btn.dataset.filter || '').toLowerCase().replace(/\s+/g, '-');
+                        if (normalizedSelected === 'all' || normalizedSelected === normalizedLabel) {
+                            btn.classList.add('bg-[#8b1e1a]', 'text-white');
+                        }
+                    });
+                    cards.forEach((card) => {
+                        const normalizedCard = String(card.dataset.category || '').toLowerCase().replace(/\s+/g, '-');
+                        const match = normalizedSelected === 'all' || normalizedSelected === normalizedCard;
+                        card.style.display = match ? 'block' : 'none';
+                    });
+                };
+
+                buttons.forEach((button) => {
+                    button.addEventListener('click', () => {
+                        applyFilter(button.dataset.filter || 'All');
+                    });
+                });
+
+                const queryFilter = new URLSearchParams(window.location.search).get('filter');
+                applyFilter(queryFilter || 'All');
+            }
 
             const mapEl = document.getElementById('coverage-map');
-            if (!mapEl || typeof L === 'undefined') return;
-
+            if (mapEl && typeof window.emLoadLeaflet === 'function') {
             const points = @json($profileContent['coverage_map_points'] ?? []);
             const reachRows = @json($profileContent['reach'] ?? []);
             const countyNameEl = document.querySelector('[data-county-name]');
@@ -273,6 +349,7 @@
             const planCampaignBtn = document.querySelector('[data-plan-campaign]');
             const viewSitesBtn = document.querySelector('[data-view-sites]');
 
+            const initCoverageMap = () => {
             const map = L.map(mapEl).setView([-0.7, 37.2], 6);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -284,6 +361,19 @@
                 grouped[row.county].poles += Number(row.poles || 0);
                 grouped[row.county].sites.push(row.site);
             });
+
+            let maxCounty = 1;
+            Object.values(grouped).forEach((row) => {
+                maxCounty = Math.max(maxCounty, row.poles || 1);
+            });
+            if (typeof L.heatLayer === 'function') {
+                const heatPoints = [];
+                points.forEach((point) => {
+                    const w = ((grouped[point.county]?.poles ?? 120) / maxCounty) * 0.75 + 0.12;
+                    heatPoints.push([point.lat, point.lng, w]);
+                });
+                L.heatLayer(heatPoints, { radius: 34, blur: 20, maxZoom: 12, gradient: { 0.25: '#fef3e8', 0.55: '#f04a2a', 0.9: '#5c1514' } }).addTo(map);
+            }
 
             const mediaColorMap = {
                 'Street Light Ads': '#8B1E1A',
@@ -374,6 +464,30 @@
                 const countyCard = document.querySelector(`[data-county-card="${targetCounty}"]`);
                 countyCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
+            };
+
+            const startMapWhenVisible = () => {
+                window.emLoadLeaflet({ withMarkerCluster: true, withHeat: true })
+                    .then(() => requestAnimationFrame(initCoverageMap))
+                    .catch((err) => console.warn('Coverage map failed to load', err));
+            };
+
+            if ('IntersectionObserver' in window) {
+                const io = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            if (!entry.isIntersecting) return;
+                            io.disconnect();
+                            startMapWhenVisible();
+                        });
+                    },
+                    { rootMargin: '240px 0px', threshold: 0.02 },
+                );
+                io.observe(mapEl);
+            } else {
+                startMapWhenVisible();
+            }
+            }
 
             const calculator = document.querySelector('[data-rate-calculator]');
             if (calculator) {
